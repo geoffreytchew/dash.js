@@ -22300,7 +22300,7 @@ var MetricsLogger = (function () {
             this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
             this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
             this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
             this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
             this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
         }
@@ -22334,8 +22334,15 @@ var Performance = (function () {
         key: 'mark',
         value: function mark(name) {
             var timestamp = window.performance.now();
-            console.log('!!! @_@ Adding timestamp ' + timestamp + ' for mark named ' + name);
             this.marks.set(name, timestamp);
+            console.log('!!! @_@ Added timestamp ' + timestamp + ' for mark named ' + name);
+        }
+    }, {
+        key: 'markOnce',
+        value: function markOnce(name) {
+            if (!this.marks.has(name)) {
+                this.mark(name);
+            }
         }
     }, {
         key: 'measure',
@@ -23280,7 +23287,7 @@ function MediaPlayer() {
      * @instance
      */
     function initialize(view, source, AutoPlay) {
-        context.performance.mark(context.marks.INITIALIZE_PLAYER);
+        context.performance.markOnce(context.marks.INITIALIZE_PLAYER);
 
         if (!capabilities) {
             capabilities = (0, _utilsCapabilities2['default'])(context).getInstance();
@@ -30723,7 +30730,7 @@ function PlaybackController() {
     function onCanPlay() {
         // Only log metrics after the initial canplay event
         if (!context.performance.hasMark(context.marks.EVENT_CAN_PLAY)) {
-            context.performance.mark(context.marks.EVENT_CAN_PLAY);
+            context.performance.markOnce(context.marks.EVENT_CAN_PLAY);
             context.metricsLogger.logAll();
         }
         eventBus.trigger(_coreEventsEvents2['default'].CAN_PLAY);

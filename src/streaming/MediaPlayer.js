@@ -184,7 +184,7 @@ function MediaPlayer() {
      * @instance
      */
     function initialize(view, source, AutoPlay) {
-        context.performance.mark(context.marks.INITIALIZE_PLAYER);
+        context.performance.markOnce(context.marks.INITIALIZE_PLAYER);
 
         if (!capabilities) {
             capabilities = Capabilities(context).getInstance();

@@ -22481,7 +22481,7 @@ var MetricsLogger = (function () {
             this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
             this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
             this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
             this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
             this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
         }
@@ -22515,8 +22515,15 @@ var Performance = (function () {
         key: 'mark',
         value: function mark(name) {
             var timestamp = window.performance.now();
-            console.log('!!! @_@ Adding timestamp ' + timestamp + ' for mark named ' + name);
             this.marks.set(name, timestamp);
+            console.log('!!! @_@ Added timestamp ' + timestamp + ' for mark named ' + name);
+        }
+    }, {
+        key: 'markOnce',
+        value: function markOnce(name) {
+            if (!this.marks.has(name)) {
+                this.mark(name);
+            }
         }
     }, {
         key: 'measure',
@@ -23461,7 +23468,7 @@ function MediaPlayer() {
      * @instance
      */
     function initialize(view, source, AutoPlay) {
-        context.performance.mark(context.marks.INITIALIZE_PLAYER);
+        context.performance.markOnce(context.marks.INITIALIZE_PLAYER);
 
         if (!capabilities) {
             capabilities = (0, _utilsCapabilities2['default'])(context).getInstance();
@@ -31052,7 +31059,7 @@ function PlaybackController() {
     function onCanPlay() {
         // Only log metrics after the initial canplay event
         if (!context.performance.hasMark(context.marks.EVENT_CAN_PLAY)) {
-            context.performance.mark(context.marks.EVENT_CAN_PLAY);
+            context.performance.markOnce(context.marks.EVENT_CAN_PLAY);
             context.metricsLogger.logAll();
         }
         eventBus.trigger(_coreEventsEvents2['default'].CAN_PLAY);
@@ -39732,7 +39739,7 @@ function ProtectionController(config) {
 
     function onKeyMessage(e) {
         // Received License Request From CDM
-        context.performance.mark(context.marks.END_GENERATE_LICENSE_REQUEST);
+        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -39802,7 +39809,7 @@ function ProtectionController(config) {
         xhr.responseType = licenseServerData.getResponseType(keySystemString, messageType);
         xhr.onload = function () {
             // Received License Response
-            context.performance.mark(context.marks.END_SEND_LICENSE_REQUEST);
+            context.performance.markOnce(context.marks.END_SEND_LICENSE_REQUEST);
             if (this.status == 200) {
                 sendLicenseRequestCompleteEvent(eventData);
                 protectionModel.updateKeySession(sessionToken, licenseServerData.getLicenseMessage(this.response, keySystemString, messageType));
@@ -39840,7 +39847,7 @@ function ProtectionController(config) {
         }
 
         // Send License Request
-        context.performance.mark(context.marks.START_SEND_LICENSE_REQUEST);
+        context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
         xhr.send(keySystem.getLicenseRequestFromMessage(message));
     }
 
@@ -41402,9 +41409,9 @@ function ProtectionModel_21Jan2015(config) {
     }
 
     function selectKeySystem(keySystemAccess) {
-        context.performance.mark(context.marks.START_CREATE_MEDIA_KEYS);
+        context.performance.markOnce(context.marks.START_CREATE_MEDIA_KEYS);
         keySystemAccess.mksa.createMediaKeys().then(function (mkeys) {
-            context.performance.mark(context.marks.END_CREATE_MEDIA_KEYS);
+            context.performance.markOnce(context.marks.END_CREATE_MEDIA_KEYS);
             keySystem = keySystemAccess.keySystem;
             mediaKeys = mkeys;
             if (videoElement) {
@@ -41455,14 +41462,14 @@ function ProtectionModel_21Jan2015(config) {
             throw new Error('Can not create sessions until you have selected a key system');
         }
 
-        context.performance.mark(context.marks.START_CREATE_SESSION);
+        context.performance.markOnce(context.marks.START_CREATE_SESSION);
         var session = mediaKeys.createSession(sessionType);
-        context.performance.mark(context.marks.END_CREATE_SESSION);
+        context.performance.markOnce(context.marks.END_CREATE_SESSION);
 
         var sessionToken = createSessionToken(session, initData, sessionType);
 
         // Generate initial key request
-        context.performance.mark(context.marks.START_GENERATE_LICENSE_REQUEST);
+        context.performance.markOnce(context.marks.START_GENERATE_LICENSE_REQUEST);
         session.generateRequest('cenc', initData).then(function () {
             log('DRM: Session created.  SessionID = ' + sessionToken.getSessionID());
             eventBus.trigger(_coreEventsEvents2['default'].KEY_SESSION_CREATED, { data: sessionToken });
@@ -41483,7 +41490,7 @@ function ProtectionModel_21Jan2015(config) {
         }
 
         // Send License to CDM
-        context.performance.mark(context.marks.UPDATE_MEDIA_KEY_SESSION);
+        context.performance.markOnce(context.marks.UPDATE_MEDIA_KEY_SESSION);
         session.update(message)['catch'](function (error) {
             eventBus.trigger(_coreEventsEvents2['default'].KEY_ERROR, { data: new _voKeyError2['default'](sessionToken, 'Error sending update() message! ' + error.name) });
         });
@@ -41533,9 +41540,9 @@ function ProtectionModel_21Jan2015(config) {
         (function (i) {
             var keySystem = ksConfigurations[i].ks;
             var configs = ksConfigurations[i].configs;
-            context.performance.mark(context.marks.START_REQUEST_MEDIA_KEY_ACCESS);
+            context.performance.markOnce(context.marks.START_REQUEST_MEDIA_KEY_ACCESS);
             navigator.requestMediaKeySystemAccess(keySystem.systemString, configs).then(function (mediaKeySystemAccess) {
-                context.performance.mark(context.marks.END_REQUEST_MEDIA_KEY_ACCESS);
+                context.performance.markOnce(context.marks.END_REQUEST_MEDIA_KEY_ACCESS);
                 // Chrome 40 does not currently implement MediaKeySystemAccess.getConfiguration()
                 var configuration = typeof mediaKeySystemAccess.getConfiguration === 'function' ? mediaKeySystemAccess.getConfiguration() : null;
                 var keySystemAccess = new _voKeySystemAccess2['default'](keySystem, configuration);
@@ -41571,7 +41578,7 @@ function ProtectionModel_21Jan2015(config) {
                 switch (event.type) {
 
                     case 'encrypted':
-                        context.performance.mark(context.marks.EVENT_ENCRYPTED);
+                        context.performance.markOnce(context.marks.EVENT_ENCRYPTED);
                         if (event.initData) {
                             var initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                             eventBus.trigger(_coreEventsEvents2['default'].NEED_KEY, { key: new _voNeedKey2['default'](initData, event.initDataType) });

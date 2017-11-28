@@ -5,8 +5,14 @@ class Performance {
 
     mark(name) {
         var timestamp = window.performance.now();
-        console.log('!!! @_@ Adding timestamp ' + timestamp + ' for mark named ' + name);
         this.marks.set(name, timestamp);
+        console.log('!!! @_@ Added timestamp ' + timestamp + ' for mark named ' + name);
+    }
+
+    markOnce(name) {
+        if ( !this.marks.has(name) ) {
+            this.mark(name);
+        }
     }
 
     measure(start, end) {

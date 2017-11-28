@@ -434,7 +434,7 @@ function ProtectionController(config) {
 
     function onKeyMessage(e) {
         // Received License Request From CDM
-        context.performance.mark(context.marks.END_GENERATE_LICENSE_REQUEST);
+        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -504,7 +504,7 @@ function ProtectionController(config) {
         xhr.responseType = licenseServerData.getResponseType(keySystemString, messageType);
         xhr.onload = function () {
             // Received License Response
-            context.performance.mark(context.marks.END_SEND_LICENSE_REQUEST);
+            context.performance.markOnce(context.marks.END_SEND_LICENSE_REQUEST);
             if (this.status == 200) {
                 sendLicenseRequestCompleteEvent(eventData);
                 protectionModel.updateKeySession(sessionToken,
@@ -546,7 +546,7 @@ function ProtectionController(config) {
         }
 
         // Send License Request
-        context.performance.mark(context.marks.START_SEND_LICENSE_REQUEST);
+        context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
         xhr.send(keySystem.getLicenseRequestFromMessage(message));
     }
 
