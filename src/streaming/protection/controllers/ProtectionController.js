@@ -53,6 +53,7 @@ import BASE64 from '../../../../externals/base64';
 
 function ProtectionController(config) {
 
+    let context = this.context;
     let protectionKeyController = config.protectionKeyController;
     let protectionModel = config.protectionModel;
     let adapter = config.adapter;
@@ -432,6 +433,8 @@ function ProtectionController(config) {
     }
 
     function onKeyMessage(e) {
+        // Received License Request From CDM
+        context.performance.mark(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -500,10 +503,12 @@ function ProtectionController(config) {
         xhr.open(licenseServerData.getHTTPMethod(messageType), url, true);
         xhr.responseType = licenseServerData.getResponseType(keySystemString, messageType);
         xhr.onload = function () {
+            // Received License Response
+            context.performance.mark(context.marks.END_SEND_LICENSE_REQUEST);
             if (this.status == 200) {
                 sendLicenseRequestCompleteEvent(eventData);
                 protectionModel.updateKeySession(sessionToken,
-                        licenseServerData.getLicenseMessage(this.response, keySystemString, messageType));
+                licenseServerData.getLicenseMessage(this.response, keySystemString, messageType));
             } else {
                 sendLicenseRequestCompleteEvent(eventData,
                         'DRM: ' + keySystemString + ' update, XHR status is "' + this.statusText + '" (' + this.status +
@@ -540,6 +545,8 @@ function ProtectionController(config) {
             xhr.withCredentials = true;
         }
 
+        // Send License Request
+        context.performance.mark(context.marks.START_SEND_LICENSE_REQUEST);
         xhr.send(keySystem.getLicenseRequestFromMessage(message));
     }
 

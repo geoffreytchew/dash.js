@@ -1549,6 +1549,7 @@ var _externalsBase642 = _interopRequireDefault(_externalsBase64);
 
 function ProtectionController(config) {
 
+    var context = this.context;
     var protectionKeyController = config.protectionKeyController;
     var protectionModel = config.protectionModel;
     var adapter = config.adapter;
@@ -1934,6 +1935,8 @@ function ProtectionController(config) {
     }
 
     function onKeyMessage(e) {
+        // Received License Request From CDM
+        context.performance.mark(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -2002,6 +2005,8 @@ function ProtectionController(config) {
         xhr.open(licenseServerData.getHTTPMethod(messageType), url, true);
         xhr.responseType = licenseServerData.getResponseType(keySystemString, messageType);
         xhr.onload = function () {
+            // Received License Response
+            context.performance.mark(context.marks.END_SEND_LICENSE_REQUEST);
             if (this.status == 200) {
                 sendLicenseRequestCompleteEvent(eventData);
                 protectionModel.updateKeySession(sessionToken, licenseServerData.getLicenseMessage(this.response, keySystemString, messageType));
@@ -2038,6 +2043,8 @@ function ProtectionController(config) {
             xhr.withCredentials = true;
         }
 
+        // Send License Request
+        context.performance.mark(context.marks.START_SEND_LICENSE_REQUEST);
         xhr.send(keySystem.getLicenseRequestFromMessage(message));
     }
 
@@ -2650,48 +2657,63 @@ function KeySystemPlayReady() {
     var instance = undefined;
     var messageFormat = 'utf16';
 
-    function getRequestHeadersFromMessage(message) {
-        var msg = undefined,
-            xmlDoc = undefined;
-        var headers = {};
-        var parser = new DOMParser();
-        var dataview = messageFormat === 'utf16' ? new Uint16Array(message) : new Uint8Array(message);
+    function stringMessage(message) {
+        return String.fromCharCode.apply(null, new Uint8Array(message));
+    }
 
-        msg = String.fromCharCode.apply(null, dataview);
-        xmlDoc = parser.parseFromString(msg, 'application/xml');
+    function getRequestHeadersFromMessage() {
+        // var msg,
+        //     xmlDoc;
+        // var headers = {};
+        // var parser = new DOMParser();
+        // var dataview = (messageFormat === 'utf16') ? new Uint16Array(message) : new Uint8Array(message);
 
-        var headerNameList = xmlDoc.getElementsByTagName('name');
-        var headerValueList = xmlDoc.getElementsByTagName('value');
-        for (var i = 0; i < headerNameList.length; i++) {
-            headers[headerNameList[i].childNodes[0].nodeValue] = headerValueList[i].childNodes[0].nodeValue;
-        }
-        // some versions of the PlayReady CDM return 'Content' instead of 'Content-Type'.
-        // this is NOT w3c conform and license servers may reject the request!
-        // -> rename it to proper w3c definition!
-        if (headers.hasOwnProperty('Content')) {
-            headers['Content-Type'] = headers.Content;
-            delete headers.Content;
-        }
-        return headers;
+        var known_headers = {
+            'Content-Type': 'text/xml; charset=utf-8',
+            //'Cache-Control': 'no-cache',
+            //'use_keep_alive': 'true',
+            //'SEND_SOAP_ACTION': 'true',
+            'SOAPAction': 'http://schemas.microsoft.com/DRM/2007/03/protocols/AcquireLicense'
+        };
+
+        return known_headers;
+
+        // msg = String.fromCharCode.apply(null, dataview);
+        // xmlDoc = parser.parseFromString(msg, 'application/xml');
+        // var headerNameList = xmlDoc.getElementsByTagName('name');
+        // var headerValueList = xmlDoc.getElementsByTagName('value');
+        // for (var i = 0; i < headerNameList.length; i++) {
+        //     headers[headerNameList[i].childNodes[0].nodeValue] = headerValueList[i].childNodes[0].nodeValue;
+        // }
+        // // some versions of the PlayReady CDM return 'Content' instead of 'Content-Type'.
+        // // this is NOT w3c conform and license servers may reject the request!
+        // // -> rename it to proper w3c definition!
+        // if (headers.hasOwnProperty('Content')) {
+        //     headers['Content-Type'] = headers.Content;
+        //     delete headers.Content;
+        // }
+        // return headers;
     }
 
     function getLicenseRequestFromMessage(message) {
-        var msg = undefined,
-            xmlDoc = undefined;
-        var licenseRequest = null;
-        var parser = new DOMParser();
-        var dataview = messageFormat === 'utf16' ? new Uint16Array(message) : new Uint8Array(message);
+        // var msg,
+        //     xmlDoc;
+        // var licenseRequest = null;
+        // var parser = new DOMParser();
+        // var dataview = (messageFormat === 'utf16') ? new Uint16Array(message) : new Uint8Array(message);
 
-        msg = String.fromCharCode.apply(null, dataview);
-        xmlDoc = parser.parseFromString(msg, 'application/xml');
-
-        if (xmlDoc.getElementsByTagName('Challenge')[0]) {
-            var Challenge = xmlDoc.getElementsByTagName('Challenge')[0].childNodes[0].nodeValue;
-            if (Challenge) {
-                licenseRequest = _externalsBase642['default'].decode(Challenge);
-            }
-        }
-        return licenseRequest;
+        var msg = stringMessage(message);
+        //console.log('eme:playready:req=' + msg);
+        return msg;
+        // msg = String.fromCharCode.apply(null, dataview);
+        // xmlDoc = parser.parseFromString(msg, 'application/xml');
+        // if (xmlDoc.getElementsByTagName('Challenge')[0]) {
+        //     var Challenge = xmlDoc.getElementsByTagName('Challenge')[0].childNodes[0].nodeValue;
+        //     if (Challenge) {
+        //         licenseRequest = BASE64.decode(Challenge);
+        //     }
+        // }
+        // return licenseRequest;
     }
 
     function getLicenseServerURLFromInitData(initData) {
@@ -2816,6 +2838,7 @@ function KeySystemPlayReady() {
         uuid: uuid,
         schemeIdURI: schemeIdURI,
         systemString: systemString,
+        stringMessage: stringMessage,
         getInitData: getInitData,
         getRequestHeadersFromMessage: getRequestHeadersFromMessage,
         getLicenseRequestFromMessage: getLicenseRequestFromMessage,
@@ -3247,7 +3270,7 @@ function ProtectionModel_01b(config) {
         var sessionID = sessionToken.sessionID;
         if (!protectionKeyController.isClearKey(keySystem)) {
             // Send our request to the CDM
-            videoElement[api.addKey](keySystem.systemString, new Uint8Array(message), sessionToken.initData, sessionID);
+            videoElement[api.addKey](keySystem.systemString, new Uint8Array(message), new Uint8Array(sessionToken.initData), sessionID);
         } else {
             // For clearkey, message is a ClearKeyKeySet
             for (var i = 0; i < message.keyPairs.length; i++) {
@@ -3583,7 +3606,9 @@ function ProtectionModel_21Jan2015(config) {
     }
 
     function selectKeySystem(keySystemAccess) {
+        context.performance.mark(context.marks.START_CREATE_MEDIA_KEYS);
         keySystemAccess.mksa.createMediaKeys().then(function (mkeys) {
+            context.performance.mark(context.marks.END_CREATE_MEDIA_KEYS);
             keySystem = keySystemAccess.keySystem;
             mediaKeys = mkeys;
             if (videoElement) {
@@ -3634,10 +3659,14 @@ function ProtectionModel_21Jan2015(config) {
             throw new Error('Can not create sessions until you have selected a key system');
         }
 
+        context.performance.mark(context.marks.START_CREATE_SESSION);
         var session = mediaKeys.createSession(sessionType);
+        context.performance.mark(context.marks.END_CREATE_SESSION);
+
         var sessionToken = createSessionToken(session, initData, sessionType);
 
         // Generate initial key request
+        context.performance.mark(context.marks.START_GENERATE_LICENSE_REQUEST);
         session.generateRequest('cenc', initData).then(function () {
             log('DRM: Session created.  SessionID = ' + sessionToken.getSessionID());
             eventBus.trigger(_coreEventsEvents2['default'].KEY_SESSION_CREATED, { data: sessionToken });
@@ -3656,6 +3685,9 @@ function ProtectionModel_21Jan2015(config) {
         if (protectionKeyController.isClearKey(keySystem)) {
             message = message.toJWK();
         }
+
+        // Send License to CDM
+        context.performance.mark(context.marks.UPDATE_MEDIA_KEY_SESSION);
         session.update(message)['catch'](function (error) {
             eventBus.trigger(_coreEventsEvents2['default'].KEY_ERROR, { data: new _voKeyError2['default'](sessionToken, 'Error sending update() message! ' + error.name) });
         });
@@ -3705,8 +3737,9 @@ function ProtectionModel_21Jan2015(config) {
         (function (i) {
             var keySystem = ksConfigurations[i].ks;
             var configs = ksConfigurations[i].configs;
+            context.performance.mark(context.marks.START_REQUEST_MEDIA_KEY_ACCESS);
             navigator.requestMediaKeySystemAccess(keySystem.systemString, configs).then(function (mediaKeySystemAccess) {
-
+                context.performance.mark(context.marks.END_REQUEST_MEDIA_KEY_ACCESS);
                 // Chrome 40 does not currently implement MediaKeySystemAccess.getConfiguration()
                 var configuration = typeof mediaKeySystemAccess.getConfiguration === 'function' ? mediaKeySystemAccess.getConfiguration() : null;
                 var keySystemAccess = new _voKeySystemAccess2['default'](keySystem, configuration);
@@ -3742,6 +3775,7 @@ function ProtectionModel_21Jan2015(config) {
                 switch (event.type) {
 
                     case 'encrypted':
+                        context.performance.mark(context.marks.EVENT_ENCRYPTED);
                         if (event.initData) {
                             var initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                             eventBus.trigger(_coreEventsEvents2['default'].NEED_KEY, { key: new _voNeedKey2['default'](initData, event.initDataType) });

@@ -347,6 +347,11 @@ function PlaybackController() {
     }
 
     function onCanPlay() {
+        // Only log metrics after the initial canplay event
+        if ( !context.performance.hasMark(context.marks.EVENT_CAN_PLAY) ) {
+            context.performance.mark(context.marks.EVENT_CAN_PLAY);
+            context.metricsLogger.logAll();
+        }
         eventBus.trigger(Events.CAN_PLAY);
     }
 

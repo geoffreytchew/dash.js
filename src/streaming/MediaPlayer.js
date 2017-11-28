@@ -63,6 +63,11 @@ import DashManifestModel from '../dash/models/DashManifestModel';
 import DashMetrics from '../dash/DashMetrics';
 import TimelineConverter from '../dash/utils/TimelineConverter';
 
+// Performance
+import Performance from '../performance/Performance';
+import Marks from '../performance/Marks';
+import MetricsLogger from '../performance/MetricsLogger';
+
 /**
  * @module MediaPlayer
  * @description The MediaPlayer is the primary dash.js Module and a Facade to build your player around.
@@ -106,6 +111,11 @@ function MediaPlayer() {
         videoModel,
         textController,
         domStorage;
+
+    // Initialize performance classes
+    this.context.performance = new Performance();
+    this.context.marks = new Marks();
+    this.context.metricsLogger = new MetricsLogger(this.context.performance, this.context.marks);
 
     /*
     ---------------------------------------------------------------------------
@@ -174,6 +184,7 @@ function MediaPlayer() {
      * @instance
      */
     function initialize(view, source, AutoPlay) {
+        context.performance.mark(context.marks.INITIALIZE_PLAYER);
 
         if (!capabilities) {
             capabilities = Capabilities(context).getInstance();

@@ -124,7 +124,9 @@ function ProtectionModel_21Jan2015(config) {
     }
 
     function selectKeySystem(keySystemAccess) {
+        context.performance.mark(context.marks.START_CREATE_MEDIA_KEYS);
         keySystemAccess.mksa.createMediaKeys().then(function (mkeys) {
+            context.performance.mark(context.marks.END_CREATE_MEDIA_KEYS);
             keySystem = keySystemAccess.keySystem;
             mediaKeys = mkeys;
             if (videoElement) {
@@ -177,10 +179,14 @@ function ProtectionModel_21Jan2015(config) {
             throw new Error('Can not create sessions until you have selected a key system');
         }
 
+        context.performance.mark(context.marks.START_CREATE_SESSION);
         let session = mediaKeys.createSession(sessionType);
+        context.performance.mark(context.marks.END_CREATE_SESSION);
+
         let sessionToken = createSessionToken(session, initData, sessionType);
 
         // Generate initial key request
+        context.performance.mark(context.marks.START_GENERATE_LICENSE_REQUEST);
         session.generateRequest('cenc', initData).then(function () {
             log('DRM: Session created.  SessionID = ' + sessionToken.getSessionID());
             eventBus.trigger(Events.KEY_SESSION_CREATED, {data: sessionToken});
@@ -199,6 +205,9 @@ function ProtectionModel_21Jan2015(config) {
         if (protectionKeyController.isClearKey(keySystem)) {
             message = message.toJWK();
         }
+
+        // Send License to CDM
+        context.performance.mark(context.marks.UPDATE_MEDIA_KEY_SESSION);
         session.update(message).catch(function (error) {
             eventBus.trigger(Events.KEY_ERROR, {data: new KeyError(sessionToken, 'Error sending update() message! ' + error.name)});
         });
@@ -249,8 +258,9 @@ function ProtectionModel_21Jan2015(config) {
         (function (i) {
             let keySystem = ksConfigurations[i].ks;
             let configs = ksConfigurations[i].configs;
+            context.performance.mark(context.marks.START_REQUEST_MEDIA_KEY_ACCESS);
             navigator.requestMediaKeySystemAccess(keySystem.systemString, configs).then(function (mediaKeySystemAccess) {
-
+                context.performance.mark(context.marks.END_REQUEST_MEDIA_KEY_ACCESS);
                 // Chrome 40 does not currently implement MediaKeySystemAccess.getConfiguration()
                 let configuration = (typeof mediaKeySystemAccess.getConfiguration === 'function') ?
                         mediaKeySystemAccess.getConfiguration() : null;
@@ -288,6 +298,7 @@ function ProtectionModel_21Jan2015(config) {
                 switch (event.type) {
 
                     case 'encrypted':
+                        context.performance.mark(context.marks.EVENT_ENCRYPTED);
                         if (event.initData) {
                             let initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                             eventBus.trigger(Events.NEED_KEY, {key: new NeedKey(initData, event.initDataType)});

@@ -2039,7 +2039,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _srcStreamingMediaPlayer = _dereq_(91);
+var _srcStreamingMediaPlayer = _dereq_(94);
 
 var _srcStreamingMediaPlayer2 = _interopRequireDefault(_srcStreamingMediaPlayer);
 
@@ -2067,7 +2067,7 @@ exports.FactoryMaker = _srcCoreFactoryMaker2['default'];
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"49":49,"50":50,"91":91}],5:[function(_dereq_,module,exports){
+},{"49":49,"50":50,"94":94}],5:[function(_dereq_,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -3972,7 +3972,7 @@ function blitBuffer (src, dst, offset, length) {
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
 },{"15":15,"25":25,"5":5}],9:[function(_dereq_,module,exports){
-/*! codem-isoboxer v0.3.4 https://github.com/madebyhiro/codem-isoboxer/blob/master/LICENSE.txt */
+/*! codem-isoboxer v0.3.5 https://github.com/madebyhiro/codem-isoboxer/blob/master/LICENSE.txt */
 var ISOBoxer = {};
 
 ISOBoxer.parseBuffer = function(arrayBuffer) {
@@ -4428,14 +4428,26 @@ ISOBox.prototype._readTerminatedString = function() {
 
 ISOBox.prototype._readData = function(size) {
   var length = (size > 0) ? size : (this._raw.byteLength - (this._cursor.offset - this._offset));
-  var data = new DataView(this._raw.buffer, this._cursor.offset, length);
-  this._cursor.offset += length;
-  return data;
+  if (length > 0) {
+    var data = new Uint8Array(this._raw.buffer, this._cursor.offset, length);
+
+    this._cursor.offset += length;
+    return data;
+  }
+  else {
+    return null;
+  }
 };
 
 ISOBox.prototype._readUTF8String = function() {
-  var data = this._readData();
-  return ISOBoxer.Utils.dataViewToString(data);
+  var length = this._raw.byteLength - (this._cursor.offset - this._offset);
+  var data = null;
+  if (length > 0) {
+    data = new DataView(this._raw.buffer, this._cursor.offset, length);
+    this._cursor.offset += length;
+  }
+ 
+  return data ? ISOBoxer.Utils.dataViewToString(data) : data;
 };
 
 ISOBox.prototype._parseBox = function() {
@@ -4665,28 +4677,27 @@ ISOBox.prototype._writeTemplate = function(size, value) {
 
 ISOBox.prototype._writeData = function(data) {
   var i;
-  if (data instanceof Array) {
-    if (!Uint8Array.from) {
-      var typedArray = new Uint8Array(data.length);
-      for (i = 0; i < data.length; i++) {
-        typedArray[i] = data[i];
+  //data to copy
+  if (data) {
+    if (this._rawo) {
+      //Array and Uint8Array has also to be managed
+      if (data instanceof Array) {
+        var offset = this._cursor.offset - this._rawo.byteOffset;
+        for (var i = 0; i < data.length; i++) {
+          this._rawo.setInt8(offset + i, data[i]);
+        }
+        this._cursor.offset += data.length;
+      } 
+
+      if (data instanceof Uint8Array) {
+        this._root.bytes.set(data, this._cursor.offset);
+        this._cursor.offset += data.length;
       }
-      data = new DataView(typedArray.buffer);
+
     } else {
-      data = new DataView(Uint8Array.from(data).buffer);
+      //nothing to copy only size to compute
+      this.size += data.length;
     }
-  }
-  if (data instanceof Uint8Array) {
-    data = new DataView(data.buffer);
-  }
-  if (this._rawo) {
-    var offset = this._cursor.offset - this._rawo.byteOffset;
-    for (i = 0; i < data.byteLength; i++) {
-        this._rawo.setUint8(offset + i, data.getUint8(i));
-    }
-    this._cursor.offset += data.byteLength;
-  } else {
-    this.size += data.byteLength;
   }
 };
 
@@ -7426,7 +7437,8 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
             regionW: null,
             imgResolver: imgResolver,
             displayForcedOnlyMode: displayForcedOnlyMode || false,
-            isd: isd
+            isd: isd,
+            errorHandler: errorHandler
         };
 
         element.appendChild(rootcontainer);
@@ -7470,6 +7482,14 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
 
             e = document.createElement("br");
 
+        }
+        
+        if (! e) {
+            
+            reportError(context.errorHandler, "Error processing ISD element kind: " + isd_element.kind);
+            
+            return;
+            
         }
 
         /* override UA default margin */
@@ -8139,6 +8159,13 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
 
         STYLMAP_BY_QNAME[STYLING_MAP_DEFS[i].qname] = STYLING_MAP_DEFS[i];
     }
+    
+    function reportError(errorHandler, msg) {
+
+        if (errorHandler && errorHandler.error && errorHandler.error(msg))
+            throw msg;
+
+    }
 
 })(typeof exports === 'undefined' ? this.imscHTML = {} : exports,
     typeof imscNames === 'undefined' ? _dereq_(20) : imscNames,
@@ -8410,12 +8437,11 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
                     isd_element.styleAttrs[cs.qname]
                     );
 
-
-                isd_element.styleAttrs[cs.qname] = cstyle;
-
-
-                // reportError(errorHandler, "Style '" + sa.qname + "' on element '" + isd_element.kind + "' cannot be computed");
-
+                if (cstyle !== null) {
+                    isd_element.styleAttrs[cs.qname] = cstyle;
+                } else {
+                    reportError(errorHandler, "Style '" + cs.qname + "' on element '" + isd_element.kind + "' cannot be computed");
+                }
             }
 
         }
@@ -9848,7 +9874,7 @@ if (typeof Object.create === 'function') {
 /*!
  * Determine if an object is a Buffer
  *
- * @author   Feross Aboukhadijeh <feross@feross.org> <http://feross.org>
+ * @author   Feross Aboukhadijeh <https://feross.org>
  * @license  MIT
  */
 
@@ -15421,23 +15447,23 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingConstantsConstants = _dereq_(97);
+var _streamingConstantsConstants = _dereq_(100);
 
 var _streamingConstantsConstants2 = _interopRequireDefault(_streamingConstantsConstants);
 
-var _streamingVoTrackInfo = _dereq_(169);
+var _streamingVoTrackInfo = _dereq_(172);
 
 var _streamingVoTrackInfo2 = _interopRequireDefault(_streamingVoTrackInfo);
 
-var _streamingVoMediaInfo = _dereq_(164);
+var _streamingVoMediaInfo = _dereq_(167);
 
 var _streamingVoMediaInfo2 = _interopRequireDefault(_streamingVoMediaInfo);
 
-var _streamingVoStreamInfo = _dereq_(166);
+var _streamingVoStreamInfo = _dereq_(169);
 
 var _streamingVoStreamInfo2 = _interopRequireDefault(_streamingVoStreamInfo);
 
-var _streamingVoManifestInfo = _dereq_(163);
+var _streamingVoManifestInfo = _dereq_(166);
 
 var _streamingVoManifestInfo2 = _interopRequireDefault(_streamingVoManifestInfo);
 
@@ -15953,7 +15979,7 @@ DashAdapter.__dashjs_factory_name = 'DashAdapter';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(DashAdapter);
 module.exports = exports['default'];
 
-},{"1":1,"163":163,"164":164,"166":166,"169":169,"49":49,"81":81,"97":97}],55:[function(_dereq_,module,exports){
+},{"1":1,"100":100,"166":166,"167":167,"169":169,"172":172,"49":49,"81":81}],55:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -15992,7 +16018,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingConstantsConstants = _dereq_(97);
+var _streamingConstantsConstants = _dereq_(100);
 
 var _streamingConstantsConstants2 = _interopRequireDefault(_streamingConstantsConstants);
 
@@ -16000,15 +16026,15 @@ var _constantsDashConstants = _dereq_(59);
 
 var _constantsDashConstants2 = _interopRequireDefault(_constantsDashConstants);
 
-var _streamingVoFragmentRequest = _dereq_(160);
+var _streamingVoFragmentRequest = _dereq_(163);
 
 var _streamingVoFragmentRequest2 = _interopRequireDefault(_streamingVoFragmentRequest);
 
-var _streamingVoDashJSError = _dereq_(158);
+var _streamingVoDashJSError = _dereq_(161);
 
 var _streamingVoDashJSError2 = _interopRequireDefault(_streamingVoDashJSError);
 
-var _streamingVoMetricsHTTPRequest = _dereq_(175);
+var _streamingVoMetricsHTTPRequest = _dereq_(178);
 
 var _coreEventsEvents = _dereq_(52);
 
@@ -16026,7 +16052,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _streamingUtilsURLUtils = _dereq_(153);
+var _streamingUtilsURLUtils = _dereq_(156);
 
 var _streamingUtilsURLUtils2 = _interopRequireDefault(_streamingUtilsURLUtils);
 
@@ -16545,7 +16571,7 @@ _coreFactoryMaker2['default'].updateClassFactory(DashHandler.__dashjs_factory_na
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"153":153,"158":158,"160":160,"175":175,"47":47,"48":48,"49":49,"52":52,"57":57,"58":58,"59":59,"74":74,"75":75,"85":85,"97":97}],56:[function(_dereq_,module,exports){
+},{"100":100,"156":156,"161":161,"163":163,"178":178,"47":47,"48":48,"49":49,"52":52,"57":57,"58":58,"59":59,"74":74,"75":75,"85":85}],56:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -16584,13 +16610,13 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingVoMetricsHTTPRequest = _dereq_(175);
+var _streamingVoMetricsHTTPRequest = _dereq_(178);
 
 var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _streamingConstantsMetricsConstants = _dereq_(98);
+var _streamingConstantsMetricsConstants = _dereq_(101);
 
 var _streamingConstantsMetricsConstants2 = _interopRequireDefault(_streamingConstantsMetricsConstants);
 
@@ -16964,7 +16990,7 @@ DashMetrics.__dashjs_factory_name = 'DashMetrics';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(DashMetrics);
 module.exports = exports['default'];
 
-},{"175":175,"41":41,"49":49,"98":98}],57:[function(_dereq_,module,exports){
+},{"101":101,"178":178,"41":41,"49":49}],57:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -17003,7 +17029,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingUtilsRequestModifier = _dereq_(151);
+var _streamingUtilsRequestModifier = _dereq_(154);
 
 var _streamingUtilsRequestModifier2 = _interopRequireDefault(_streamingUtilsRequestModifier);
 
@@ -17011,7 +17037,7 @@ var _voSegment = _dereq_(86);
 
 var _voSegment2 = _interopRequireDefault(_voSegment);
 
-var _streamingVoDashJSError = _dereq_(158);
+var _streamingVoDashJSError = _dereq_(161);
 
 var _streamingVoDashJSError2 = _interopRequireDefault(_streamingVoDashJSError);
 
@@ -17023,7 +17049,7 @@ var _coreEventBus = _dereq_(48);
 
 var _coreEventBus2 = _interopRequireDefault(_coreEventBus);
 
-var _streamingUtilsBoxParser = _dereq_(141);
+var _streamingUtilsBoxParser = _dereq_(144);
 
 var _streamingUtilsBoxParser2 = _interopRequireDefault(_streamingUtilsBoxParser);
 
@@ -17035,13 +17061,13 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _streamingVoMetricsHTTPRequest = _dereq_(175);
+var _streamingVoMetricsHTTPRequest = _dereq_(178);
 
-var _streamingVoFragmentRequest = _dereq_(160);
+var _streamingVoFragmentRequest = _dereq_(163);
 
 var _streamingVoFragmentRequest2 = _interopRequireDefault(_streamingVoFragmentRequest);
 
-var _streamingXHRLoader = _dereq_(95);
+var _streamingXHRLoader = _dereq_(98);
 
 var _streamingXHRLoader2 = _interopRequireDefault(_streamingXHRLoader);
 
@@ -17350,7 +17376,7 @@ SegmentBaseLoader.__dashjs_factory_name = 'SegmentBaseLoader';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(SegmentBaseLoader);
 module.exports = exports['default'];
 
-},{"141":141,"151":151,"158":158,"160":160,"175":175,"47":47,"48":48,"49":49,"52":52,"86":86,"95":95}],58:[function(_dereq_,module,exports){
+},{"144":144,"154":154,"161":161,"163":163,"178":178,"47":47,"48":48,"49":49,"52":52,"86":86,"98":98}],58:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -17367,7 +17393,7 @@ var _coreEventBus = _dereq_(48);
 
 var _coreEventBus2 = _interopRequireDefault(_coreEventBus);
 
-var _streamingUtilsEBMLParser = _dereq_(145);
+var _streamingUtilsEBMLParser = _dereq_(148);
 
 var _streamingUtilsEBMLParser2 = _interopRequireDefault(_streamingUtilsEBMLParser);
 
@@ -17379,7 +17405,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _streamingUtilsRequestModifier = _dereq_(151);
+var _streamingUtilsRequestModifier = _dereq_(154);
 
 var _streamingUtilsRequestModifier2 = _interopRequireDefault(_streamingUtilsRequestModifier);
 
@@ -17387,13 +17413,13 @@ var _voSegment = _dereq_(86);
 
 var _voSegment2 = _interopRequireDefault(_voSegment);
 
-var _streamingVoMetricsHTTPRequest = _dereq_(175);
+var _streamingVoMetricsHTTPRequest = _dereq_(178);
 
-var _streamingVoFragmentRequest = _dereq_(160);
+var _streamingVoFragmentRequest = _dereq_(163);
 
 var _streamingVoFragmentRequest2 = _interopRequireDefault(_streamingVoFragmentRequest);
 
-var _streamingXHRLoader = _dereq_(95);
+var _streamingXHRLoader = _dereq_(98);
 
 var _streamingXHRLoader2 = _interopRequireDefault(_streamingXHRLoader);
 
@@ -17824,7 +17850,7 @@ WebmSegmentBaseLoader.__dashjs_factory_name = 'WebmSegmentBaseLoader';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(WebmSegmentBaseLoader);
 module.exports = exports['default'];
 
-},{"145":145,"151":151,"160":160,"175":175,"47":47,"48":48,"49":49,"52":52,"86":86,"95":95}],59:[function(_dereq_,module,exports){
+},{"148":148,"154":154,"163":163,"178":178,"47":47,"48":48,"49":49,"52":52,"86":86,"98":98}],59:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -18016,7 +18042,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingConstantsConstants = _dereq_(97);
+var _streamingConstantsConstants = _dereq_(100);
 
 var _streamingConstantsConstants2 = _interopRequireDefault(_streamingConstantsConstants);
 
@@ -18024,7 +18050,7 @@ var _constantsDashConstants = _dereq_(59);
 
 var _constantsDashConstants2 = _interopRequireDefault(_constantsDashConstants);
 
-var _streamingVoDashJSError = _dereq_(158);
+var _streamingVoDashJSError = _dereq_(161);
 
 var _streamingVoDashJSError2 = _interopRequireDefault(_streamingVoDashJSError);
 
@@ -18036,7 +18062,7 @@ var _coreEventsEvents = _dereq_(52);
 
 var _coreEventsEvents2 = _interopRequireDefault(_coreEventsEvents);
 
-var _streamingMediaPlayerEvents = _dereq_(92);
+var _streamingMediaPlayerEvents = _dereq_(95);
 
 var _streamingMediaPlayerEvents2 = _interopRequireDefault(_streamingMediaPlayerEvents);
 
@@ -18386,7 +18412,7 @@ RepresentationController.__dashjs_factory_name = 'RepresentationController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(RepresentationController);
 module.exports = exports['default'];
 
-},{"158":158,"48":48,"49":49,"52":52,"59":59,"85":85,"92":92,"97":97}],61:[function(_dereq_,module,exports){
+},{"100":100,"161":161,"48":48,"49":49,"52":52,"59":59,"85":85,"95":95}],61:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -18425,7 +18451,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _streamingConstantsConstants = _dereq_(97);
+var _streamingConstantsConstants = _dereq_(100);
 
 var _streamingConstantsConstants2 = _interopRequireDefault(_streamingConstantsConstants);
 
@@ -18465,11 +18491,11 @@ var _voEventStream = _dereq_(82);
 
 var _voEventStream2 = _interopRequireDefault(_voEventStream);
 
-var _streamingUtilsObjectUtils = _dereq_(150);
+var _streamingUtilsObjectUtils = _dereq_(153);
 
 var _streamingUtilsObjectUtils2 = _interopRequireDefault(_streamingUtilsObjectUtils);
 
-var _streamingUtilsURLUtils = _dereq_(153);
+var _streamingUtilsURLUtils = _dereq_(156);
 
 var _streamingUtilsURLUtils2 = _interopRequireDefault(_streamingUtilsURLUtils);
 
@@ -19415,7 +19441,7 @@ DashManifestModel.__dashjs_factory_name = 'DashManifestModel';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(DashManifestModel);
 module.exports = exports['default'];
 
-},{"150":150,"153":153,"49":49,"59":59,"79":79,"80":80,"81":81,"82":82,"83":83,"84":84,"85":85,"87":87,"97":97}],62:[function(_dereq_,module,exports){
+},{"100":100,"153":153,"156":156,"49":49,"59":59,"79":79,"80":80,"81":81,"82":82,"83":83,"84":84,"85":85,"87":87}],62:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -20113,7 +20139,7 @@ var _BaseMatcher2 = _dereq_(67);
 
 var _BaseMatcher3 = _interopRequireDefault(_BaseMatcher2);
 
-var _streamingConstantsConstants = _dereq_(97);
+var _streamingConstantsConstants = _dereq_(100);
 
 var _streamingConstantsConstants2 = _interopRequireDefault(_streamingConstantsConstants);
 
@@ -20165,7 +20191,7 @@ var DurationMatcher = (function (_BaseMatcher) {
 exports['default'] = DurationMatcher;
 module.exports = exports['default'];
 
-},{"59":59,"67":67,"97":97}],70:[function(_dereq_,module,exports){
+},{"100":100,"59":59,"67":67}],70:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -22178,6 +22204,163 @@ exports['default'] = UTCTiming;
 module.exports = exports['default'];
 
 },{}],88:[function(_dereq_,module,exports){
+'use strict';
+
+Object.defineProperty(exports, '__esModule', {
+    value: true
+});
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+var Marks = function Marks() {
+    _classCallCheck(this, Marks);
+
+    // MediaPlayer initialize is called
+    this.INITIALIZE_PLAYER = 'initializePlayer';
+
+    // 'encrypted' event is received from HtmlMediaElement
+    this.EVENT_ENCRYPTED = 'eventEncrypted';
+
+    // Before navigator.requestMediaKeySystemAccess is called
+    this.START_REQUEST_MEDIA_KEY_ACCESS = 'startRequestMediaKeyAccess';
+    // navigator.requestMediaKeySystemAccess promise resolved
+    this.END_REQUEST_MEDIA_KEY_ACCESS = 'endRequestMediaKeyAccess';
+
+    // Before MediaKeySystemAccess.createMediaKeys is called
+    this.START_CREATE_MEDIA_KEYS = 'startCreateMediaKeys';
+    // After call to MediaKeySystemAccess.createMediaKeys returns
+    this.END_CREATE_MEDIA_KEYS = 'endCreateMediaKeys';
+
+    // Before MediaKeys.createSession is called
+    this.START_CREATE_SESSION = 'startCreateSession';
+    // After call to MediaKeys.createSession returns
+    this.END_CREATE_SESSION = 'endCreateSession';
+
+    // Before MediaKeySession.generateRequest is called
+    this.START_GENERATE_LICENSE_REQUEST = 'startGenerateLicenseRequest';
+    // Message event containing license request received
+    this.END_GENERATE_LICENSE_REQUEST = 'endGenerateLicenseRequest';
+
+    // Before license request received from CDM is sent to license server
+    this.START_SEND_LICENSE_REQUEST = 'startSendLicenseRequest';
+    // After license response is received from license server
+    this.END_SEND_LICENSE_REQUEST = 'endSendLicenseRequest';
+
+    // Before MediaKeySession.update is called
+    this.UPDATE_MEDIA_KEY_SESSION = 'updateMediaKeySession';
+    // 'canplay' event is received from HtmlMediaElement
+    this.EVENT_CAN_PLAY = 'eventCanPlay';
+};
+
+exports['default'] = Marks;
+module.exports = exports['default'];
+
+},{}],89:[function(_dereq_,module,exports){
+'use strict';
+
+Object.defineProperty(exports, '__esModule', {
+    value: true
+});
+
+var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+var LOGGING_PREFIX = '[PERFORMANCE]';
+
+var MetricsLogger = (function () {
+    function MetricsLogger(performance, marks) {
+        _classCallCheck(this, MetricsLogger);
+
+        this.performance = performance;
+        this.marks = marks;
+    }
+
+    _createClass(MetricsLogger, [{
+        key: 'log',
+        value: function log(description, timestamp, startMark, endMark) {
+            if (!this.performance.hasMark(startMark)) {
+                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + startMark + ' was not set');
+            } else if (!this.performance.hasMark(endMark)) {
+                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + endMark + ' was not set');
+            } else {
+                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + this.performance.measure(startMark, endMark) + ' millis');
+            }
+        }
+    }, {
+        key: 'logAll',
+        value: function logAll() {
+            var timestamp = new Date();
+            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Call returns', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_REQUEST_MEDIA_KEY_ACCESS);
+            this.log('Start Player calls MediaKeySystemAccess.createMediaKeys  -> End Call returns', timestamp, this.marks.START_CREATE_MEDIA_KEYS, this.marks.END_CREATE_MEDIA_KEYS);
+            this.log('Start Player calls MediaKeys.createSession               -> End Call returns', timestamp, this.marks.START_CREATE_SESSION, this.marks.END_CREATE_SESSION);
+            this.log('Start Player calls MediaKeySession.generateRequest -> End Player receives license request from CDM', timestamp, this.marks.START_GENERATE_LICENSE_REQUEST, this.marks.END_GENERATE_LICENSE_REQUEST);
+            this.log('Start Player sends license request -> End License response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+
+            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
+            this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+            this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
+            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+            this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
+            this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+        }
+    }]);
+
+    return MetricsLogger;
+})();
+
+exports['default'] = MetricsLogger;
+module.exports = exports['default'];
+
+},{}],90:[function(_dereq_,module,exports){
+'use strict';
+
+Object.defineProperty(exports, '__esModule', {
+    value: true
+});
+
+var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ('value' in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+var Performance = (function () {
+    function Performance() {
+        _classCallCheck(this, Performance);
+
+        this.marks = new Map();
+    }
+
+    _createClass(Performance, [{
+        key: 'mark',
+        value: function mark(name) {
+            var timestamp = window.performance.now();
+            console.log('!!! @_@ Adding timestamp ' + timestamp + ' for mark named ' + name);
+            this.marks.set(name, timestamp);
+        }
+    }, {
+        key: 'measure',
+        value: function measure(start, end) {
+            return this.marks.get(end) - this.marks.get(start);
+        }
+    }, {
+        key: 'clear',
+        value: function clear() {
+            this.marks.clear();
+        }
+    }, {
+        key: 'hasMark',
+        value: function hasMark(name) {
+            return this.marks.has(name);
+        }
+    }]);
+
+    return Performance;
+})();
+
+exports['default'] = Performance;
+module.exports = exports['default'];
+
+},{}],91:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -22216,15 +22399,15 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _XHRLoader = _dereq_(95);
+var _XHRLoader = _dereq_(98);
 
 var _XHRLoader2 = _interopRequireDefault(_XHRLoader);
 
-var _voHeadRequest = _dereq_(161);
+var _voHeadRequest = _dereq_(164);
 
 var _voHeadRequest2 = _interopRequireDefault(_voHeadRequest);
 
-var _voDashJSError = _dereq_(158);
+var _voDashJSError = _dereq_(161);
 
 var _voDashJSError2 = _interopRequireDefault(_voDashJSError);
 
@@ -22350,7 +22533,7 @@ _coreFactoryMaker2['default'].updateClassFactory(FragmentLoader.__dashjs_factory
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"158":158,"161":161,"48":48,"49":49,"52":52,"95":95}],89:[function(_dereq_,module,exports){
+},{"161":161,"164":164,"48":48,"49":49,"52":52,"98":98}],92:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -22389,31 +22572,31 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _controllersXlinkController = _dereq_(112);
+var _controllersXlinkController = _dereq_(115);
 
 var _controllersXlinkController2 = _interopRequireDefault(_controllersXlinkController);
 
-var _XHRLoader = _dereq_(95);
+var _XHRLoader = _dereq_(98);
 
 var _XHRLoader2 = _interopRequireDefault(_XHRLoader);
 
-var _utilsURLUtils = _dereq_(153);
+var _utilsURLUtils = _dereq_(156);
 
 var _utilsURLUtils2 = _interopRequireDefault(_utilsURLUtils);
 
-var _voTextRequest = _dereq_(167);
+var _voTextRequest = _dereq_(170);
 
 var _voTextRequest2 = _interopRequireDefault(_voTextRequest);
 
-var _voDashJSError = _dereq_(158);
+var _voDashJSError = _dereq_(161);
 
 var _voDashJSError2 = _interopRequireDefault(_voDashJSError);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
 var _coreEventBus = _dereq_(48);
 
@@ -22612,7 +22795,7 @@ _coreFactoryMaker2['default'].updateClassFactory(ManifestLoader.__dashjs_factory
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"112":112,"153":153,"158":158,"167":167,"175":175,"47":47,"48":48,"49":49,"52":52,"62":62,"95":95,"97":97}],90:[function(_dereq_,module,exports){
+},{"100":100,"115":115,"156":156,"161":161,"170":170,"178":178,"47":47,"48":48,"49":49,"52":52,"62":62,"98":98}],93:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -22814,7 +22997,7 @@ ManifestUpdater.__dashjs_factory_name = 'ManifestUpdater';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(ManifestUpdater);
 module.exports = exports['default'];
 
-},{"47":47,"48":48,"49":49,"52":52}],91:[function(_dereq_,module,exports){
+},{"47":47,"48":48,"49":49,"52":52}],94:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -22853,7 +23036,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -22861,71 +23044,71 @@ var _dashVoUTCTiming = _dereq_(87);
 
 var _dashVoUTCTiming2 = _interopRequireDefault(_dashVoUTCTiming);
 
-var _controllersPlaybackController = _dereq_(107);
+var _controllersPlaybackController = _dereq_(110);
 
 var _controllersPlaybackController2 = _interopRequireDefault(_controllersPlaybackController);
 
-var _controllersStreamController = _dereq_(110);
+var _controllersStreamController = _dereq_(113);
 
 var _controllersStreamController2 = _interopRequireDefault(_controllersStreamController);
 
-var _controllersMediaController = _dereq_(105);
+var _controllersMediaController = _dereq_(108);
 
 var _controllersMediaController2 = _interopRequireDefault(_controllersMediaController);
 
-var _ManifestLoader = _dereq_(89);
+var _ManifestLoader = _dereq_(92);
 
 var _ManifestLoader2 = _interopRequireDefault(_ManifestLoader);
 
-var _utilsErrorHandler = _dereq_(146);
+var _utilsErrorHandler = _dereq_(149);
 
 var _utilsErrorHandler2 = _interopRequireDefault(_utilsErrorHandler);
 
-var _utilsCapabilities = _dereq_(142);
+var _utilsCapabilities = _dereq_(145);
 
 var _utilsCapabilities2 = _interopRequireDefault(_utilsCapabilities);
 
-var _textTextTracks = _dereq_(139);
+var _textTextTracks = _dereq_(142);
 
 var _textTextTracks2 = _interopRequireDefault(_textTextTracks);
 
-var _utilsRequestModifier = _dereq_(151);
+var _utilsRequestModifier = _dereq_(154);
 
 var _utilsRequestModifier2 = _interopRequireDefault(_utilsRequestModifier);
 
-var _textTextController = _dereq_(137);
+var _textTextController = _dereq_(140);
 
 var _textTextController2 = _interopRequireDefault(_textTextController);
 
-var _modelsURIQueryAndFragmentModel = _dereq_(118);
+var _modelsURIQueryAndFragmentModel = _dereq_(121);
 
 var _modelsURIQueryAndFragmentModel2 = _interopRequireDefault(_modelsURIQueryAndFragmentModel);
 
-var _modelsManifestModel = _dereq_(115);
+var _modelsManifestModel = _dereq_(118);
 
 var _modelsManifestModel2 = _interopRequireDefault(_modelsManifestModel);
 
-var _modelsMediaPlayerModel = _dereq_(116);
+var _modelsMediaPlayerModel = _dereq_(119);
 
 var _modelsMediaPlayerModel2 = _interopRequireDefault(_modelsMediaPlayerModel);
 
-var _modelsMetricsModel = _dereq_(117);
+var _modelsMetricsModel = _dereq_(120);
 
 var _modelsMetricsModel2 = _interopRequireDefault(_modelsMetricsModel);
 
-var _controllersAbrController = _dereq_(99);
+var _controllersAbrController = _dereq_(102);
 
 var _controllersAbrController2 = _interopRequireDefault(_controllersAbrController);
 
-var _controllersSourceBufferController = _dereq_(109);
+var _controllersSourceBufferController = _dereq_(112);
 
 var _controllersSourceBufferController2 = _interopRequireDefault(_controllersSourceBufferController);
 
-var _modelsVideoModel = _dereq_(119);
+var _modelsVideoModel = _dereq_(122);
 
 var _modelsVideoModel2 = _interopRequireDefault(_modelsVideoModel);
 
-var _utilsDOMStorage = _dereq_(144);
+var _utilsDOMStorage = _dereq_(147);
 
 var _utilsDOMStorage2 = _interopRequireDefault(_utilsDOMStorage);
 
@@ -22941,7 +23124,7 @@ var _coreEventsEvents = _dereq_(52);
 
 var _coreEventsEvents2 = _interopRequireDefault(_coreEventsEvents);
 
-var _MediaPlayerEvents = _dereq_(92);
+var _MediaPlayerEvents = _dereq_(95);
 
 var _MediaPlayerEvents2 = _interopRequireDefault(_MediaPlayerEvents);
 
@@ -22968,6 +23151,20 @@ var _dashDashMetrics2 = _interopRequireDefault(_dashDashMetrics);
 var _dashUtilsTimelineConverter = _dereq_(77);
 
 var _dashUtilsTimelineConverter2 = _interopRequireDefault(_dashUtilsTimelineConverter);
+
+// Performance
+
+var _performancePerformance = _dereq_(90);
+
+var _performancePerformance2 = _interopRequireDefault(_performancePerformance);
+
+var _performanceMarks = _dereq_(88);
+
+var _performanceMarks2 = _interopRequireDefault(_performanceMarks);
+
+var _performanceMetricsLogger = _dereq_(89);
+
+var _performanceMetricsLogger2 = _interopRequireDefault(_performanceMetricsLogger);
 
 /**
  * @module MediaPlayer
@@ -23012,6 +23209,11 @@ function MediaPlayer() {
         videoModel = undefined,
         textController = undefined,
         domStorage = undefined;
+
+    // Initialize performance classes
+    this.context.performance = new _performancePerformance2['default']();
+    this.context.marks = new _performanceMarks2['default']();
+    this.context.metricsLogger = new _performanceMetricsLogger2['default'](this.context.performance, this.context.marks);
 
     /*
     ---------------------------------------------------------------------------
@@ -23078,6 +23280,7 @@ function MediaPlayer() {
      * @instance
      */
     function initialize(view, source, AutoPlay) {
+        context.performance.mark(context.marks.INITIALIZE_PLAYER);
 
         if (!capabilities) {
             capabilities = (0, _utilsCapabilities2['default'])(context).getInstance();
@@ -25515,7 +25718,7 @@ _coreFactoryMaker2['default'].updateClassFactory(MediaPlayer.__dashjs_factory_na
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"105":105,"107":107,"109":109,"110":110,"115":115,"116":116,"117":117,"118":118,"119":119,"137":137,"139":139,"142":142,"144":144,"146":146,"151":151,"47":47,"48":48,"49":49,"50":50,"52":52,"54":54,"56":56,"61":61,"77":77,"87":87,"89":89,"92":92,"97":97,"99":99}],92:[function(_dereq_,module,exports){
+},{"100":100,"102":102,"108":108,"110":110,"112":112,"113":113,"118":118,"119":119,"120":120,"121":121,"122":122,"140":140,"142":142,"145":145,"147":147,"149":149,"154":154,"47":47,"48":48,"49":49,"50":50,"52":52,"54":54,"56":56,"61":61,"77":77,"87":87,"88":88,"89":89,"90":90,"92":92,"95":95}],95:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -25796,7 +25999,7 @@ var mediaPlayerEvents = new MediaPlayerEvents();
 exports['default'] = mediaPlayerEvents;
 module.exports = exports['default'];
 
-},{"53":53}],93:[function(_dereq_,module,exports){
+},{"53":53}],96:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -25835,23 +26038,23 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _StreamProcessor = _dereq_(94);
+var _StreamProcessor = _dereq_(97);
 
 var _StreamProcessor2 = _interopRequireDefault(_StreamProcessor);
 
-var _controllersEventController = _dereq_(103);
+var _controllersEventController = _dereq_(106);
 
 var _controllersEventController2 = _interopRequireDefault(_controllersEventController);
 
-var _controllersFragmentController = _dereq_(104);
+var _controllersFragmentController = _dereq_(107);
 
 var _controllersFragmentController2 = _interopRequireDefault(_controllersFragmentController);
 
-var _modelsVideoModel = _dereq_(119);
+var _modelsVideoModel = _dereq_(122);
 
 var _modelsVideoModel2 = _interopRequireDefault(_modelsVideoModel);
 
@@ -26427,7 +26630,7 @@ Stream.__dashjs_factory_name = 'Stream';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(Stream);
 module.exports = exports['default'];
 
-},{"103":103,"104":104,"119":119,"47":47,"48":48,"49":49,"52":52,"94":94,"97":97}],94:[function(_dereq_,module,exports){
+},{"100":100,"106":106,"107":107,"122":122,"47":47,"48":48,"49":49,"52":52,"97":97}],97:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -26466,23 +26669,23 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _utilsLiveEdgeFinder = _dereq_(149);
+var _utilsLiveEdgeFinder = _dereq_(152);
 
 var _utilsLiveEdgeFinder2 = _interopRequireDefault(_utilsLiveEdgeFinder);
 
-var _controllersBufferController = _dereq_(102);
+var _controllersBufferController = _dereq_(105);
 
 var _controllersBufferController2 = _interopRequireDefault(_controllersBufferController);
 
-var _textTextBufferController = _dereq_(136);
+var _textTextBufferController = _dereq_(139);
 
 var _textTextBufferController2 = _interopRequireDefault(_textTextBufferController);
 
-var _controllersScheduleController = _dereq_(108);
+var _controllersScheduleController = _dereq_(111);
 
 var _controllersScheduleController2 = _interopRequireDefault(_controllersScheduleController);
 
@@ -26833,7 +27036,7 @@ StreamProcessor.__dashjs_factory_name = 'StreamProcessor';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(StreamProcessor);
 module.exports = exports['default'];
 
-},{"102":102,"108":108,"136":136,"149":149,"49":49,"55":55,"60":60,"97":97}],95:[function(_dereq_,module,exports){
+},{"100":100,"105":105,"111":111,"139":139,"152":152,"49":49,"55":55,"60":60}],98:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -26874,13 +27077,13 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'd
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
 var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _utilsErrorHandlerJs = _dereq_(146);
+var _utilsErrorHandlerJs = _dereq_(149);
 
 var _utilsErrorHandlerJs2 = _interopRequireDefault(_utilsErrorHandlerJs);
 
@@ -27127,7 +27330,7 @@ var factory = _coreFactoryMaker2['default'].getClassFactory(XHRLoader);
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"146":146,"175":175,"49":49}],96:[function(_dereq_,module,exports){
+},{"149":149,"178":178,"49":49}],99:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -27166,17 +27369,17 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _voDashJSError = _dereq_(158);
+var _voDashJSError = _dereq_(161);
 
 var _voDashJSError2 = _interopRequireDefault(_voDashJSError);
 
-var _XHRLoader = _dereq_(95);
+var _XHRLoader = _dereq_(98);
 
 var _XHRLoader2 = _interopRequireDefault(_XHRLoader);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
-var _voTextRequest = _dereq_(167);
+var _voTextRequest = _dereq_(170);
 
 var _voTextRequest2 = _interopRequireDefault(_voTextRequest);
 
@@ -27262,7 +27465,7 @@ _coreFactoryMaker2['default'].updateClassFactory(XlinkLoader.__dashjs_factory_na
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"158":158,"167":167,"175":175,"48":48,"49":49,"52":52,"95":95}],97:[function(_dereq_,module,exports){
+},{"161":161,"170":170,"178":178,"48":48,"49":49,"52":52,"98":98}],100:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -27355,7 +27558,7 @@ var constants = new Constants();
 exports['default'] = constants;
 module.exports = exports['default'];
 
-},{}],98:[function(_dereq_,module,exports){
+},{}],101:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -27436,7 +27639,7 @@ var constants = new MetricsConstants();
 exports['default'] = constants;
 module.exports = exports['default'];
 
-},{}],99:[function(_dereq_,module,exports){
+},{}],102:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -27476,23 +27679,23 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _rulesAbrABRRulesCollection = _dereq_(125);
+var _rulesAbrABRRulesCollection = _dereq_(128);
 
 var _rulesAbrABRRulesCollection2 = _interopRequireDefault(_rulesAbrABRRulesCollection);
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _constantsMetricsConstants = _dereq_(98);
+var _constantsMetricsConstants = _dereq_(101);
 
 var _constantsMetricsConstants2 = _interopRequireDefault(_constantsMetricsConstants);
 
-var _voBitrateInfo = _dereq_(157);
+var _voBitrateInfo = _dereq_(160);
 
 var _voBitrateInfo2 = _interopRequireDefault(_voBitrateInfo);
 
-var _modelsFragmentModel = _dereq_(114);
+var _modelsFragmentModel = _dereq_(117);
 
 var _modelsFragmentModel2 = _interopRequireDefault(_modelsFragmentModel);
 
@@ -27508,27 +27711,27 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _rulesRulesContextJs = _dereq_(121);
+var _rulesRulesContextJs = _dereq_(124);
 
 var _rulesRulesContextJs2 = _interopRequireDefault(_rulesRulesContextJs);
 
-var _rulesSwitchRequestJs = _dereq_(122);
+var _rulesSwitchRequestJs = _dereq_(125);
 
 var _rulesSwitchRequestJs2 = _interopRequireDefault(_rulesSwitchRequestJs);
 
-var _rulesSwitchRequestHistoryJs = _dereq_(123);
+var _rulesSwitchRequestHistoryJs = _dereq_(126);
 
 var _rulesSwitchRequestHistoryJs2 = _interopRequireDefault(_rulesSwitchRequestHistoryJs);
 
-var _rulesDroppedFramesHistoryJs = _dereq_(120);
+var _rulesDroppedFramesHistoryJs = _dereq_(123);
 
 var _rulesDroppedFramesHistoryJs2 = _interopRequireDefault(_rulesDroppedFramesHistoryJs);
 
-var _rulesThroughputHistoryJs = _dereq_(124);
+var _rulesThroughputHistoryJs = _dereq_(127);
 
 var _rulesThroughputHistoryJs2 = _interopRequireDefault(_rulesThroughputHistoryJs);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
 var _coreDebug = _dereq_(47);
 
@@ -28204,7 +28407,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(AbrController.__dashjs_fact
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"114":114,"120":120,"121":121,"122":122,"123":123,"124":124,"125":125,"157":157,"175":175,"47":47,"48":48,"49":49,"52":52,"97":97,"98":98}],100:[function(_dereq_,module,exports){
+},{"100":100,"101":101,"117":117,"123":123,"124":124,"125":125,"126":126,"127":127,"128":128,"160":160,"178":178,"47":47,"48":48,"49":49,"52":52}],103:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -28244,15 +28447,15 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _modelsBaseURLTreeModel = _dereq_(113);
+var _modelsBaseURLTreeModel = _dereq_(116);
 
 var _modelsBaseURLTreeModel2 = _interopRequireDefault(_modelsBaseURLTreeModel);
 
-var _utilsBaseURLSelector = _dereq_(140);
+var _utilsBaseURLSelector = _dereq_(143);
 
 var _utilsBaseURLSelector2 = _interopRequireDefault(_utilsBaseURLSelector);
 
-var _utilsURLUtils = _dereq_(153);
+var _utilsURLUtils = _dereq_(156);
 
 var _utilsURLUtils2 = _interopRequireDefault(_utilsURLUtils);
 
@@ -28373,7 +28576,7 @@ BaseURLController.__dashjs_factory_name = 'BaseURLController';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(BaseURLController);
 module.exports = exports['default'];
 
-},{"113":113,"140":140,"153":153,"48":48,"49":49,"52":52,"80":80}],101:[function(_dereq_,module,exports){
+},{"116":116,"143":143,"156":156,"48":48,"49":49,"52":52,"80":80}],104:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -28476,7 +28679,7 @@ BlackListController.__dashjs_factory_name = 'BlackListController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(BlackListController);
 module.exports = exports['default'];
 
-},{"48":48,"49":49}],102:[function(_dereq_,module,exports){
+},{"48":48,"49":49}],105:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -28515,23 +28718,23 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _modelsFragmentModel = _dereq_(114);
+var _modelsFragmentModel = _dereq_(117);
 
 var _modelsFragmentModel2 = _interopRequireDefault(_modelsFragmentModel);
 
-var _SourceBufferController = _dereq_(109);
+var _SourceBufferController = _dereq_(112);
 
 var _SourceBufferController2 = _interopRequireDefault(_SourceBufferController);
 
-var _AbrController = _dereq_(99);
+var _AbrController = _dereq_(102);
 
 var _AbrController2 = _interopRequireDefault(_AbrController);
 
-var _MediaController = _dereq_(105);
+var _MediaController = _dereq_(108);
 
 var _MediaController2 = _interopRequireDefault(_MediaController);
 
@@ -28543,7 +28746,7 @@ var _coreEventsEvents = _dereq_(52);
 
 var _coreEventsEvents2 = _interopRequireDefault(_coreEventsEvents);
 
-var _utilsBoxParser = _dereq_(141);
+var _utilsBoxParser = _dereq_(144);
 
 var _utilsBoxParser2 = _interopRequireDefault(_utilsBoxParser);
 
@@ -28555,7 +28758,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _utilsInitCache = _dereq_(147);
+var _utilsInitCache = _dereq_(150);
 
 var _utilsInitCache2 = _interopRequireDefault(_utilsInitCache);
 
@@ -29056,7 +29259,7 @@ _coreFactoryMaker2['default'].updateClassFactory(BufferController.__dashjs_facto
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"105":105,"109":109,"114":114,"141":141,"147":147,"47":47,"48":48,"49":49,"52":52,"97":97,"99":99}],103:[function(_dereq_,module,exports){
+},{"100":100,"102":102,"108":108,"112":112,"117":117,"144":144,"150":150,"47":47,"48":48,"49":49,"52":52}],106:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -29095,7 +29298,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -29318,7 +29521,7 @@ EventController.__dashjs_factory_name = 'EventController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(EventController);
 module.exports = exports['default'];
 
-},{"47":47,"48":48,"49":49,"97":97}],104:[function(_dereq_,module,exports){
+},{"100":100,"47":47,"48":48,"49":49}],107:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -29357,25 +29560,25 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
-var _voDataChunk = _dereq_(159);
+var _voDataChunk = _dereq_(162);
 
 var _voDataChunk2 = _interopRequireDefault(_voDataChunk);
 
-var _modelsFragmentModel = _dereq_(114);
+var _modelsFragmentModel = _dereq_(117);
 
 var _modelsFragmentModel2 = _interopRequireDefault(_modelsFragmentModel);
 
-var _FragmentLoader = _dereq_(88);
+var _FragmentLoader = _dereq_(91);
 
 var _FragmentLoader2 = _interopRequireDefault(_FragmentLoader);
 
-var _utilsRequestModifier = _dereq_(151);
+var _utilsRequestModifier = _dereq_(154);
 
 var _utilsRequestModifier2 = _interopRequireDefault(_utilsRequestModifier);
 
@@ -29509,7 +29712,7 @@ FragmentController.__dashjs_factory_name = 'FragmentController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(FragmentController);
 module.exports = exports['default'];
 
-},{"114":114,"151":151,"159":159,"175":175,"47":47,"48":48,"49":49,"52":52,"88":88,"97":97}],105:[function(_dereq_,module,exports){
+},{"100":100,"117":117,"154":154,"162":162,"178":178,"47":47,"48":48,"49":49,"52":52,"91":91}],108:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -29548,7 +29751,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -30023,7 +30226,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(MediaController.__dashjs_fa
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"47":47,"48":48,"49":49,"52":52,"97":97}],106:[function(_dereq_,module,exports){
+},{"100":100,"47":47,"48":48,"49":49,"52":52}],109:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -30142,7 +30345,7 @@ MediaSourceController.__dashjs_factory_name = 'MediaSourceController';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(MediaSourceController);
 module.exports = exports['default'];
 
-},{"49":49}],107:[function(_dereq_,module,exports){
+},{"49":49}],110:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -30181,15 +30384,15 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _BufferController = _dereq_(102);
+var _BufferController = _dereq_(105);
 
 var _BufferController2 = _interopRequireDefault(_BufferController);
 
-var _modelsURIQueryAndFragmentModel = _dereq_(118);
+var _modelsURIQueryAndFragmentModel = _dereq_(121);
 
 var _modelsURIQueryAndFragmentModel2 = _interopRequireDefault(_modelsURIQueryAndFragmentModel);
 
@@ -30518,6 +30721,11 @@ function PlaybackController() {
     }
 
     function onCanPlay() {
+        // Only log metrics after the initial canplay event
+        if (!context.performance.hasMark(context.marks.EVENT_CAN_PLAY)) {
+            context.performance.mark(context.marks.EVENT_CAN_PLAY);
+            context.metricsLogger.logAll();
+        }
         eventBus.trigger(_coreEventsEvents2['default'].CAN_PLAY);
     }
 
@@ -30742,7 +30950,7 @@ PlaybackController.__dashjs_factory_name = 'PlaybackController';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(PlaybackController);
 module.exports = exports['default'];
 
-},{"102":102,"118":118,"47":47,"48":48,"49":49,"52":52,"97":97}],108:[function(_dereq_,module,exports){
+},{"100":100,"105":105,"121":121,"47":47,"48":48,"49":49,"52":52}],111:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -30781,29 +30989,29 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _voMetricsPlayList = _dereq_(177);
+var _voMetricsPlayList = _dereq_(180);
 
-var _AbrController = _dereq_(99);
+var _AbrController = _dereq_(102);
 
 var _AbrController2 = _interopRequireDefault(_AbrController);
 
-var _BufferController = _dereq_(102);
+var _BufferController = _dereq_(105);
 
 var _BufferController2 = _interopRequireDefault(_BufferController);
 
-var _rulesSchedulingBufferLevelRule = _dereq_(132);
+var _rulesSchedulingBufferLevelRule = _dereq_(135);
 
 var _rulesSchedulingBufferLevelRule2 = _interopRequireDefault(_rulesSchedulingBufferLevelRule);
 
-var _rulesSchedulingNextFragmentRequestRule = _dereq_(133);
+var _rulesSchedulingNextFragmentRequestRule = _dereq_(136);
 
 var _rulesSchedulingNextFragmentRequestRule2 = _interopRequireDefault(_rulesSchedulingNextFragmentRequestRule);
 
-var _modelsFragmentModel = _dereq_(114);
+var _modelsFragmentModel = _dereq_(117);
 
 var _modelsFragmentModel2 = _interopRequireDefault(_modelsFragmentModel);
 
@@ -31418,7 +31626,7 @@ ScheduleController.__dashjs_factory_name = 'ScheduleController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(ScheduleController);
 module.exports = exports['default'];
 
-},{"102":102,"114":114,"132":132,"133":133,"177":177,"47":47,"48":48,"49":49,"52":52,"97":97,"99":99}],109:[function(_dereq_,module,exports){
+},{"100":100,"102":102,"105":105,"117":117,"135":135,"136":136,"180":180,"47":47,"48":48,"49":49,"52":52}],112:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -31457,7 +31665,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _voDashJSError = _dereq_(158);
+var _voDashJSError = _dereq_(161);
 
 var _voDashJSError2 = _interopRequireDefault(_voDashJSError);
 
@@ -31843,7 +32051,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(SourceBufferController.__da
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"158":158,"48":48,"49":49,"52":52}],110:[function(_dereq_,module,exports){
+},{"161":161,"48":48,"49":49,"52":52}],113:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -31882,19 +32090,19 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _constantsMetricsConstants = _dereq_(98);
+var _constantsMetricsConstants = _dereq_(101);
 
 var _constantsMetricsConstants2 = _interopRequireDefault(_constantsMetricsConstants);
 
-var _Stream = _dereq_(93);
+var _Stream = _dereq_(96);
 
 var _Stream2 = _interopRequireDefault(_Stream);
 
-var _ManifestUpdater = _dereq_(90);
+var _ManifestUpdater = _dereq_(93);
 
 var _ManifestUpdater2 = _interopRequireDefault(_ManifestUpdater);
 
@@ -31906,11 +32114,11 @@ var _coreEventsEvents = _dereq_(52);
 
 var _coreEventsEvents2 = _interopRequireDefault(_coreEventsEvents);
 
-var _modelsURIQueryAndFragmentModel = _dereq_(118);
+var _modelsURIQueryAndFragmentModel = _dereq_(121);
 
 var _modelsURIQueryAndFragmentModel2 = _interopRequireDefault(_modelsURIQueryAndFragmentModel);
 
-var _modelsMediaPlayerModel = _dereq_(116);
+var _modelsMediaPlayerModel = _dereq_(119);
 
 var _modelsMediaPlayerModel2 = _interopRequireDefault(_modelsMediaPlayerModel);
 
@@ -31918,29 +32126,29 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _voMetricsPlayList = _dereq_(177);
+var _voMetricsPlayList = _dereq_(180);
 
 var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _utilsInitCache = _dereq_(147);
+var _utilsInitCache = _dereq_(150);
 
 var _utilsInitCache2 = _interopRequireDefault(_utilsInitCache);
 
-var _MediaPlayerEvents = _dereq_(92);
+var _MediaPlayerEvents = _dereq_(95);
 
 var _MediaPlayerEvents2 = _interopRequireDefault(_MediaPlayerEvents);
 
-var _TimeSyncController = _dereq_(111);
+var _TimeSyncController = _dereq_(114);
 
 var _TimeSyncController2 = _interopRequireDefault(_TimeSyncController);
 
-var _BaseURLController = _dereq_(100);
+var _BaseURLController = _dereq_(103);
 
 var _BaseURLController2 = _interopRequireDefault(_BaseURLController);
 
-var _MediaSourceController = _dereq_(106);
+var _MediaSourceController = _dereq_(109);
 
 var _MediaSourceController2 = _interopRequireDefault(_MediaSourceController);
 
@@ -32718,7 +32926,7 @@ StreamController.__dashjs_factory_name = 'StreamController';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(StreamController);
 module.exports = exports['default'];
 
-},{"100":100,"106":106,"111":111,"116":116,"118":118,"147":147,"177":177,"47":47,"48":48,"49":49,"52":52,"90":90,"92":92,"93":93,"97":97,"98":98}],111:[function(_dereq_,module,exports){
+},{"100":100,"101":101,"103":103,"109":109,"114":114,"119":119,"121":121,"150":150,"180":180,"47":47,"48":48,"49":49,"52":52,"93":93,"95":95,"96":96}],114:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -32757,15 +32965,15 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _voDashJSError = _dereq_(158);
+var _voDashJSError = _dereq_(161);
 
 var _voDashJSError2 = _interopRequireDefault(_voDashJSError);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
 var _coreEventBus = _dereq_(48);
 
@@ -33098,7 +33306,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(TimeSyncController.__dashjs
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"158":158,"175":175,"47":47,"48":48,"49":49,"52":52,"97":97}],112:[function(_dereq_,module,exports){
+},{"100":100,"161":161,"178":178,"47":47,"48":48,"49":49,"52":52}],115:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -33137,7 +33345,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _XlinkLoader = _dereq_(96);
+var _XlinkLoader = _dereq_(99);
 
 var _XlinkLoader2 = _interopRequireDefault(_XlinkLoader);
 
@@ -33157,7 +33365,7 @@ var _externalsXml2json = _dereq_(3);
 
 var _externalsXml2json2 = _interopRequireDefault(_externalsXml2json);
 
-var _utilsURLUtils = _dereq_(153);
+var _utilsURLUtils = _dereq_(156);
 
 var _utilsURLUtils2 = _interopRequireDefault(_utilsURLUtils);
 
@@ -33422,7 +33630,7 @@ XlinkController.__dashjs_factory_name = 'XlinkController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(XlinkController);
 module.exports = exports['default'];
 
-},{"153":153,"3":3,"48":48,"49":49,"52":52,"96":96}],113:[function(_dereq_,module,exports){
+},{"156":156,"3":3,"48":48,"49":49,"52":52,"99":99}],116:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -33464,7 +33672,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'd
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-var _utilsObjectUtils = _dereq_(150);
+var _utilsObjectUtils = _dereq_(153);
 
 var _utilsObjectUtils2 = _interopRequireDefault(_utilsObjectUtils);
 
@@ -33607,7 +33815,7 @@ BaseURLTreeModel.__dashjs_factory_name = 'BaseURLTreeModel';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(BaseURLTreeModel);
 module.exports = exports['default'];
 
-},{"150":150,"49":49}],114:[function(_dereq_,module,exports){
+},{"153":153,"49":49}],117:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -33659,7 +33867,7 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _voFragmentRequest = _dereq_(160);
+var _voFragmentRequest = _dereq_(163);
 
 var _voFragmentRequest2 = _interopRequireDefault(_voFragmentRequest);
 
@@ -33929,7 +34137,7 @@ _coreFactoryMaker2['default'].updateClassFactory(FragmentModel.__dashjs_factory_
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"160":160,"47":47,"48":48,"49":49,"52":52}],115:[function(_dereq_,module,exports){
+},{"163":163,"47":47,"48":48,"49":49,"52":52}],118:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -34011,7 +34219,7 @@ ManifestModel.__dashjs_factory_name = 'ManifestModel';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(ManifestModel);
 module.exports = exports['default'];
 
-},{"48":48,"49":49,"52":52}],116:[function(_dereq_,module,exports){
+},{"48":48,"49":49,"52":52}],119:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -34056,9 +34264,9 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -34534,7 +34742,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(MediaPlayerModel.__dashjs_f
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"175":175,"49":49,"97":97}],117:[function(_dereq_,module,exports){
+},{"100":100,"178":178,"49":49}],120:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -34573,47 +34781,47 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _constantsMetricsConstants = _dereq_(98);
+var _constantsMetricsConstants = _dereq_(101);
 
 var _constantsMetricsConstants2 = _interopRequireDefault(_constantsMetricsConstants);
 
-var _voMetricsList = _dereq_(165);
+var _voMetricsList = _dereq_(168);
 
 var _voMetricsList2 = _interopRequireDefault(_voMetricsList);
 
-var _voMetricsTCPConnection = _dereq_(181);
+var _voMetricsTCPConnection = _dereq_(184);
 
 var _voMetricsTCPConnection2 = _interopRequireDefault(_voMetricsTCPConnection);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
-var _voMetricsRepresentationSwitch = _dereq_(178);
+var _voMetricsRepresentationSwitch = _dereq_(181);
 
 var _voMetricsRepresentationSwitch2 = _interopRequireDefault(_voMetricsRepresentationSwitch);
 
-var _voMetricsBufferLevel = _dereq_(171);
+var _voMetricsBufferLevel = _dereq_(174);
 
 var _voMetricsBufferLevel2 = _interopRequireDefault(_voMetricsBufferLevel);
 
-var _voMetricsBufferState = _dereq_(172);
+var _voMetricsBufferState = _dereq_(175);
 
 var _voMetricsBufferState2 = _interopRequireDefault(_voMetricsBufferState);
 
-var _voMetricsDVRInfo = _dereq_(173);
+var _voMetricsDVRInfo = _dereq_(176);
 
 var _voMetricsDVRInfo2 = _interopRequireDefault(_voMetricsDVRInfo);
 
-var _voMetricsDroppedFrames = _dereq_(174);
+var _voMetricsDroppedFrames = _dereq_(177);
 
 var _voMetricsDroppedFrames2 = _interopRequireDefault(_voMetricsDroppedFrames);
 
-var _voMetricsManifestUpdate = _dereq_(176);
+var _voMetricsManifestUpdate = _dereq_(179);
 
-var _voMetricsSchedulingInfo = _dereq_(180);
+var _voMetricsSchedulingInfo = _dereq_(183);
 
 var _voMetricsSchedulingInfo2 = _interopRequireDefault(_voMetricsSchedulingInfo);
 
@@ -34621,7 +34829,7 @@ var _coreEventBus = _dereq_(48);
 
 var _coreEventBus2 = _interopRequireDefault(_coreEventBus);
 
-var _voMetricsRequestsQueue = _dereq_(179);
+var _voMetricsRequestsQueue = _dereq_(182);
 
 var _voMetricsRequestsQueue2 = _interopRequireDefault(_voMetricsRequestsQueue);
 
@@ -35019,7 +35227,7 @@ MetricsModel.__dashjs_factory_name = 'MetricsModel';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(MetricsModel);
 module.exports = exports['default'];
 
-},{"165":165,"171":171,"172":172,"173":173,"174":174,"175":175,"176":176,"178":178,"179":179,"180":180,"181":181,"48":48,"49":49,"52":52,"97":97,"98":98}],118:[function(_dereq_,module,exports){
+},{"100":100,"101":101,"168":168,"174":174,"175":175,"176":176,"177":177,"178":178,"179":179,"181":181,"182":182,"183":183,"184":184,"48":48,"49":49,"52":52}],121:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35059,7 +35267,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _voURIFragmentData = _dereq_(170);
+var _voURIFragmentData = _dereq_(173);
 
 var _voURIFragmentData2 = _interopRequireDefault(_voURIFragmentData);
 
@@ -35156,7 +35364,7 @@ URIQueryAndFragmentModel.__dashjs_factory_name = 'URIQueryAndFragmentModel';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(URIQueryAndFragmentModel);
 module.exports = exports['default'];
 
-},{"170":170,"49":49}],119:[function(_dereq_,module,exports){
+},{"173":173,"49":49}],122:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35503,7 +35711,7 @@ VideoModel.__dashjs_factory_name = 'VideoModel';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(VideoModel);
 module.exports = exports['default'];
 
-},{"47":47,"48":48,"49":49,"52":52}],120:[function(_dereq_,module,exports){
+},{"47":47,"48":48,"49":49,"52":52}],123:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -35561,7 +35769,7 @@ var factory = _coreFactoryMakerJs2['default'].getClassFactory(DroppedFramesHisto
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"49":49}],121:[function(_dereq_,module,exports){
+},{"49":49}],124:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35676,7 +35884,7 @@ RulesContext.__dashjs_factory_name = 'RulesContext';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(RulesContext);
 module.exports = exports['default'];
 
-},{"49":49}],122:[function(_dereq_,module,exports){
+},{"49":49}],125:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35768,7 +35976,7 @@ _coreFactoryMaker2['default'].updateClassFactory(SwitchRequest.__dashjs_factory_
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"49":49}],123:[function(_dereq_,module,exports){
+},{"49":49}],126:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35812,7 +36020,7 @@ var _coreFactoryMakerJs = _dereq_(49);
 
 var _coreFactoryMakerJs2 = _interopRequireDefault(_coreFactoryMakerJs);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -35874,7 +36082,7 @@ var factory = _coreFactoryMakerJs2['default'].getClassFactory(SwitchRequestHisto
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"122":122,"49":49}],124:[function(_dereq_,module,exports){
+},{"125":125,"49":49}],127:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -35914,7 +36122,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -36150,7 +36358,7 @@ ThroughputHistory.__dashjs_factory_name = 'ThroughputHistory';
 exports['default'] = _coreFactoryMakerJs2['default'].getClassFactory(ThroughputHistory);
 module.exports = exports['default'];
 
-},{"49":49,"97":97}],125:[function(_dereq_,module,exports){
+},{"100":100,"49":49}],128:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -36189,27 +36397,27 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _ThroughputRule = _dereq_(131);
+var _ThroughputRule = _dereq_(134);
 
 var _ThroughputRule2 = _interopRequireDefault(_ThroughputRule);
 
-var _InsufficientBufferRule = _dereq_(129);
+var _InsufficientBufferRule = _dereq_(132);
 
 var _InsufficientBufferRule2 = _interopRequireDefault(_InsufficientBufferRule);
 
-var _AbandonRequestsRule = _dereq_(126);
+var _AbandonRequestsRule = _dereq_(129);
 
 var _AbandonRequestsRule2 = _interopRequireDefault(_AbandonRequestsRule);
 
-var _DroppedFramesRuleJs = _dereq_(128);
+var _DroppedFramesRuleJs = _dereq_(131);
 
 var _DroppedFramesRuleJs2 = _interopRequireDefault(_DroppedFramesRuleJs);
 
-var _SwitchHistoryRuleJs = _dereq_(130);
+var _SwitchHistoryRuleJs = _dereq_(133);
 
 var _SwitchHistoryRuleJs2 = _interopRequireDefault(_SwitchHistoryRuleJs);
 
-var _BolaRule = _dereq_(127);
+var _BolaRule = _dereq_(130);
 
 var _BolaRule2 = _interopRequireDefault(_BolaRule);
 
@@ -36217,7 +36425,7 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -36381,7 +36589,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(ABRRulesCollection.__dashjs
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"122":122,"126":126,"127":127,"128":128,"129":129,"130":130,"131":131,"49":49}],126:[function(_dereq_,module,exports){
+},{"125":125,"129":129,"130":130,"131":131,"132":132,"133":133,"134":134,"49":49}],129:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -36420,7 +36628,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _SwitchRequest = _dereq_(122);
+var _SwitchRequest = _dereq_(125);
 
 var _SwitchRequest2 = _interopRequireDefault(_SwitchRequest);
 
@@ -36560,7 +36768,7 @@ AbandonRequestsRule.__dashjs_factory_name = 'AbandonRequestsRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(AbandonRequestsRule);
 module.exports = exports['default'];
 
-},{"122":122,"47":47,"49":49}],127:[function(_dereq_,module,exports){
+},{"125":125,"47":47,"49":49}],130:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -36602,11 +36810,11 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsMetricsConstants = _dereq_(98);
+var _constantsMetricsConstants = _dereq_(101);
 
 var _constantsMetricsConstants2 = _interopRequireDefault(_constantsMetricsConstants);
 
-var _SwitchRequest = _dereq_(122);
+var _SwitchRequest = _dereq_(125);
 
 var _SwitchRequest2 = _interopRequireDefault(_SwitchRequest);
 
@@ -36614,7 +36822,7 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
 var _coreEventBus = _dereq_(48);
 
@@ -37121,7 +37329,7 @@ BolaRule.__dashjs_factory_name = 'BolaRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(BolaRule);
 module.exports = exports['default'];
 
-},{"122":122,"175":175,"47":47,"48":48,"49":49,"52":52,"98":98}],128:[function(_dereq_,module,exports){
+},{"101":101,"125":125,"178":178,"47":47,"48":48,"49":49,"52":52}],131:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -37134,7 +37342,7 @@ var _coreFactoryMakerJs = _dereq_(49);
 
 var _coreFactoryMakerJs2 = _interopRequireDefault(_coreFactoryMakerJs);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -37186,7 +37394,7 @@ var factory = _coreFactoryMakerJs2['default'].getClassFactory(DroppedFramesRule)
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"122":122,"47":47,"49":49}],129:[function(_dereq_,module,exports){
+},{"125":125,"47":47,"49":49}],132:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -37225,7 +37433,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _controllersBufferController = _dereq_(102);
+var _controllersBufferController = _dereq_(105);
 
 var _controllersBufferController2 = _interopRequireDefault(_controllersBufferController);
 
@@ -37245,7 +37453,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -37365,7 +37573,7 @@ InsufficientBufferRule.__dashjs_factory_name = 'InsufficientBufferRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(InsufficientBufferRule);
 module.exports = exports['default'];
 
-},{"102":102,"122":122,"47":47,"48":48,"49":49,"52":52}],130:[function(_dereq_,module,exports){
+},{"105":105,"125":125,"47":47,"48":48,"49":49,"52":52}],133:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -37382,7 +37590,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -37434,7 +37642,7 @@ var factory = _coreFactoryMakerJs2['default'].getClassFactory(SwitchHistoryRule)
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"122":122,"47":47,"49":49}],131:[function(_dereq_,module,exports){
+},{"125":125,"47":47,"49":49}],134:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -37473,11 +37681,11 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _controllersBufferController = _dereq_(102);
+var _controllersBufferController = _dereq_(105);
 
 var _controllersBufferController2 = _interopRequireDefault(_controllersBufferController);
 
-var _controllersAbrController = _dereq_(99);
+var _controllersAbrController = _dereq_(102);
 
 var _controllersAbrController2 = _interopRequireDefault(_controllersAbrController);
 
@@ -37489,7 +37697,7 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _SwitchRequestJs = _dereq_(122);
+var _SwitchRequestJs = _dereq_(125);
 
 var _SwitchRequestJs2 = _interopRequireDefault(_SwitchRequestJs);
 
@@ -37560,7 +37768,7 @@ ThroughputRule.__dashjs_factory_name = 'ThroughputRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(ThroughputRule);
 module.exports = exports['default'];
 
-},{"102":102,"122":122,"47":47,"49":49,"99":99}],132:[function(_dereq_,module,exports){
+},{"102":102,"105":105,"125":125,"47":47,"49":49}],135:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -37599,7 +37807,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -37661,7 +37869,7 @@ BufferLevelRule.__dashjs_factory_name = 'BufferLevelRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(BufferLevelRule);
 module.exports = exports['default'];
 
-},{"49":49,"97":97}],133:[function(_dereq_,module,exports){
+},{"100":100,"49":49}],136:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -37700,7 +37908,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -37795,7 +38003,7 @@ NextFragmentRequestRule.__dashjs_factory_name = 'NextFragmentRequestRule';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(NextFragmentRequestRule);
 module.exports = exports['default'];
 
-},{"47":47,"49":49,"97":97}],134:[function(_dereq_,module,exports){
+},{"100":100,"47":47,"49":49}],137:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -38134,7 +38342,7 @@ EmbeddedTextHtmlRender.__dashjs_factory_name = 'EmbeddedTextHtmlRender';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(EmbeddedTextHtmlRender);
 module.exports = exports['default'];
 
-},{"49":49}],135:[function(_dereq_,module,exports){
+},{"49":49}],138:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -38173,7 +38381,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -38189,7 +38397,7 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _utilsInitCache = _dereq_(147);
+var _utilsInitCache = _dereq_(150);
 
 var _utilsInitCache2 = _interopRequireDefault(_utilsInitCache);
 
@@ -38365,7 +38573,7 @@ NotFragmentedTextBufferController.__dashjs_factory_name = BUFFER_CONTROLLER_TYPE
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(NotFragmentedTextBufferController);
 module.exports = exports['default'];
 
-},{"147":147,"48":48,"49":49,"52":52,"97":97}],136:[function(_dereq_,module,exports){
+},{"100":100,"150":150,"48":48,"49":49,"52":52}],139:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -38404,7 +38612,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -38412,11 +38620,11 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _controllersBufferController = _dereq_(102);
+var _controllersBufferController = _dereq_(105);
 
 var _controllersBufferController2 = _interopRequireDefault(_controllersBufferController);
 
-var _NotFragmentedTextBufferController = _dereq_(135);
+var _NotFragmentedTextBufferController = _dereq_(138);
 
 var _NotFragmentedTextBufferController2 = _interopRequireDefault(_NotFragmentedTextBufferController);
 
@@ -38548,7 +38756,7 @@ TextBufferController.__dashjs_factory_name = 'TextBufferController';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(TextBufferController);
 module.exports = exports['default'];
 
-},{"102":102,"135":135,"49":49,"97":97}],137:[function(_dereq_,module,exports){
+},{"100":100,"105":105,"138":138,"49":49}],140:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -38587,7 +38795,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -38595,19 +38803,19 @@ var _coreFactoryMaker = _dereq_(49);
 
 var _coreFactoryMaker2 = _interopRequireDefault(_coreFactoryMaker);
 
-var _TextSourceBuffer = _dereq_(138);
+var _TextSourceBuffer = _dereq_(141);
 
 var _TextSourceBuffer2 = _interopRequireDefault(_TextSourceBuffer);
 
-var _TextTracks = _dereq_(139);
+var _TextTracks = _dereq_(142);
 
 var _TextTracks2 = _interopRequireDefault(_TextTracks);
 
-var _utilsVTTParser = _dereq_(154);
+var _utilsVTTParser = _dereq_(157);
 
 var _utilsVTTParser2 = _interopRequireDefault(_utilsVTTParser);
 
-var _utilsTTMLParser = _dereq_(152);
+var _utilsTTMLParser = _dereq_(155);
 
 var _utilsTTMLParser2 = _interopRequireDefault(_utilsTTMLParser);
 
@@ -38768,7 +38976,7 @@ TextController.__dashjs_factory_name = 'TextController';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(TextController);
 module.exports = exports['default'];
 
-},{"138":138,"139":139,"152":152,"154":154,"49":49,"97":97}],138:[function(_dereq_,module,exports){
+},{"100":100,"141":141,"142":142,"155":155,"157":157,"49":49}],141:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -38807,13 +39015,13 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _voMetricsHTTPRequest = _dereq_(175);
+var _voMetricsHTTPRequest = _dereq_(178);
 
-var _voTextTrackInfo = _dereq_(168);
+var _voTextTrackInfo = _dereq_(171);
 
 var _voTextTrackInfo2 = _interopRequireDefault(_voTextTrackInfo);
 
@@ -38821,11 +39029,11 @@ var _dashUtilsFragmentedTextBoxParser = _dereq_(72);
 
 var _dashUtilsFragmentedTextBoxParser2 = _interopRequireDefault(_dashUtilsFragmentedTextBoxParser);
 
-var _utilsBoxParser = _dereq_(141);
+var _utilsBoxParser = _dereq_(144);
 
 var _utilsBoxParser2 = _interopRequireDefault(_utilsBoxParser);
 
-var _utilsCustomTimeRanges = _dereq_(143);
+var _utilsCustomTimeRanges = _dereq_(146);
 
 var _utilsCustomTimeRanges2 = _interopRequireDefault(_utilsCustomTimeRanges);
 
@@ -38837,11 +39045,11 @@ var _coreDebug = _dereq_(47);
 
 var _coreDebug2 = _interopRequireDefault(_coreDebug);
 
-var _TextTracks = _dereq_(139);
+var _TextTracks = _dereq_(142);
 
 var _TextTracks2 = _interopRequireDefault(_TextTracks);
 
-var _EmbeddedTextHtmlRender = _dereq_(134);
+var _EmbeddedTextHtmlRender = _dereq_(137);
 
 var _EmbeddedTextHtmlRender2 = _interopRequireDefault(_EmbeddedTextHtmlRender);
 
@@ -39403,7 +39611,7 @@ TextSourceBuffer.__dashjs_factory_name = 'TextSourceBuffer';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(TextSourceBuffer);
 module.exports = exports['default'];
 
-},{"1":1,"134":134,"139":139,"141":141,"143":143,"168":168,"175":175,"47":47,"48":48,"49":49,"52":52,"72":72,"9":9,"97":97}],139:[function(_dereq_,module,exports){
+},{"1":1,"100":100,"137":137,"142":142,"144":144,"146":146,"171":171,"178":178,"47":47,"48":48,"49":49,"52":52,"72":72,"9":9}],142:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -39442,7 +39650,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
@@ -40050,7 +40258,7 @@ TextTracks.__dashjs_factory_name = 'TextTracks';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(TextTracks);
 module.exports = exports['default'];
 
-},{"19":19,"47":47,"48":48,"49":49,"52":52,"97":97}],140:[function(_dereq_,module,exports){
+},{"100":100,"19":19,"47":47,"48":48,"49":49,"52":52}],143:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -40098,15 +40306,15 @@ var _coreEventsEvents = _dereq_(52);
 
 var _coreEventsEvents2 = _interopRequireDefault(_coreEventsEvents);
 
-var _controllersBlacklistController = _dereq_(101);
+var _controllersBlacklistController = _dereq_(104);
 
 var _controllersBlacklistController2 = _interopRequireDefault(_controllersBlacklistController);
 
-var _baseUrlResolutionDVBSelector = _dereq_(156);
+var _baseUrlResolutionDVBSelector = _dereq_(159);
 
 var _baseUrlResolutionDVBSelector2 = _interopRequireDefault(_baseUrlResolutionDVBSelector);
 
-var _baseUrlResolutionBasicSelector = _dereq_(155);
+var _baseUrlResolutionBasicSelector = _dereq_(158);
 
 var _baseUrlResolutionBasicSelector2 = _interopRequireDefault(_baseUrlResolutionBasicSelector);
 
@@ -40220,7 +40428,7 @@ _coreFactoryMaker2['default'].updateClassFactory(BaseURLSelector.__dashjs_factor
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"101":101,"155":155,"156":156,"48":48,"49":49,"52":52}],141:[function(_dereq_,module,exports){
+},{"104":104,"158":158,"159":159,"48":48,"49":49,"52":52}],144:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -40260,7 +40468,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _IsoFile = _dereq_(148);
+var _IsoFile = _dereq_(151);
 
 var _IsoFile2 = _interopRequireDefault(_IsoFile);
 
@@ -40307,7 +40515,7 @@ BoxParser.__dashjs_factory_name = 'BoxParser';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(BoxParser);
 module.exports = exports['default'];
 
-},{"148":148,"49":49,"9":9}],142:[function(_dereq_,module,exports){
+},{"151":151,"49":49,"9":9}],145:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -40400,7 +40608,7 @@ Capabilities.__dashjs_factory_name = 'Capabilities';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(Capabilities);
 module.exports = exports['default'];
 
-},{"49":49}],143:[function(_dereq_,module,exports){
+},{"49":49}],146:[function(_dereq_,module,exports){
 /**
 * The copyright in this software is being made available under the BSD License,
 * included below. This software may be subject to other third party and contributor
@@ -40579,7 +40787,7 @@ CustomTimeRanges.__dashjs_factory_name = 'CustomTimeRanges';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(CustomTimeRanges);
 module.exports = exports['default'];
 
-},{"49":49}],144:[function(_dereq_,module,exports){
+},{"49":49}],147:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -40801,7 +41009,7 @@ var factory = _coreFactoryMaker2['default'].getSingletonFactory(DOMStorage);
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"47":47,"49":49}],145:[function(_dereq_,module,exports){
+},{"47":47,"49":49}],148:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -41081,7 +41289,7 @@ EBMLParser.__dashjs_factory_name = 'EBMLParser';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(EBMLParser);
 module.exports = exports['default'];
 
-},{"49":49}],146:[function(_dereq_,module,exports){
+},{"49":49}],149:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41219,7 +41427,7 @@ _coreFactoryMaker2['default'].updateSingletonFactory(ErrorHandler.__dashjs_facto
 exports['default'] = factory;
 module.exports = exports['default'];
 
-},{"48":48,"49":49,"52":52}],147:[function(_dereq_,module,exports){
+},{"48":48,"49":49,"52":52}],150:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41304,7 +41512,7 @@ InitCache.__dashjs_factory_name = 'InitCache';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(InitCache);
 module.exports = exports['default'];
 
-},{"49":49}],148:[function(_dereq_,module,exports){
+},{"49":49}],151:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41344,7 +41552,7 @@ Object.defineProperty(exports, '__esModule', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
-var _voIsoBox = _dereq_(162);
+var _voIsoBox = _dereq_(165);
 
 var _voIsoBox2 = _interopRequireDefault(_voIsoBox);
 
@@ -41439,7 +41647,7 @@ IsoFile.__dashjs_factory_name = 'IsoFile';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(IsoFile);
 module.exports = exports['default'];
 
-},{"162":162,"49":49}],149:[function(_dereq_,module,exports){
+},{"165":165,"49":49}],152:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41527,7 +41735,7 @@ LiveEdgeFinder.__dashjs_factory_name = 'LiveEdgeFinder';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(LiveEdgeFinder);
 module.exports = exports['default'];
 
-},{"49":49}],150:[function(_dereq_,module,exports){
+},{"49":49}],153:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41606,7 +41814,7 @@ ObjectUtils.__dashjs_factory_name = 'ObjectUtils';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(ObjectUtils);
 module.exports = exports['default'];
 
-},{"11":11,"49":49}],151:[function(_dereq_,module,exports){
+},{"11":11,"49":49}],154:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41674,7 +41882,7 @@ RequestModifier.__dashjs_factory_name = 'RequestModifier';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(RequestModifier);
 module.exports = exports['default'];
 
-},{"49":49}],152:[function(_dereq_,module,exports){
+},{"49":49}],155:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -41847,7 +42055,7 @@ TTMLParser.__dashjs_factory_name = 'TTMLParser';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(TTMLParser);
 module.exports = exports['default'];
 
-},{"19":19,"47":47,"49":49}],153:[function(_dereq_,module,exports){
+},{"19":19,"47":47,"49":49}],156:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42114,7 +42322,7 @@ URLUtils.__dashjs_factory_name = 'URLUtils';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(URLUtils);
 module.exports = exports['default'];
 
-},{"49":49}],154:[function(_dereq_,module,exports){
+},{"49":49}],157:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42323,7 +42531,7 @@ VTTParser.__dashjs_factory_name = 'VTTParser';
 exports['default'] = _coreFactoryMaker2['default'].getSingletonFactory(VTTParser);
 module.exports = exports['default'];
 
-},{"47":47,"49":49}],155:[function(_dereq_,module,exports){
+},{"47":47,"49":49}],158:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42399,7 +42607,7 @@ BasicSelector.__dashjs_factory_name = 'BasicSelector';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(BasicSelector);
 module.exports = exports['default'];
 
-},{"49":49}],156:[function(_dereq_,module,exports){
+},{"49":49}],159:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42551,7 +42759,7 @@ DVBSelector.__dashjs_factory_name = 'DVBSelector';
 exports['default'] = _coreFactoryMaker2['default'].getClassFactory(DVBSelector);
 module.exports = exports['default'];
 
-},{"49":49}],157:[function(_dereq_,module,exports){
+},{"49":49}],160:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42608,7 +42816,7 @@ var BitrateInfo = function BitrateInfo() {
 exports["default"] = BitrateInfo;
 module.exports = exports["default"];
 
-},{}],158:[function(_dereq_,module,exports){
+},{}],161:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42662,7 +42870,7 @@ var DashJSError = function DashJSError(code, message, data) {
 exports["default"] = DashJSError;
 module.exports = exports["default"];
 
-},{}],159:[function(_dereq_,module,exports){
+},{}],162:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42726,7 +42934,7 @@ function DataChunk() {
 exports["default"] = DataChunk;
 module.exports = exports["default"];
 
-},{}],160:[function(_dereq_,module,exports){
+},{}],163:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42803,7 +43011,7 @@ FragmentRequest.ACTION_COMPLETE = 'complete';
 exports['default'] = FragmentRequest;
 module.exports = exports['default'];
 
-},{}],161:[function(_dereq_,module,exports){
+},{}],164:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -42852,7 +43060,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var _FragmentRequest2 = _dereq_(160);
+var _FragmentRequest2 = _dereq_(163);
 
 var _FragmentRequest3 = _interopRequireDefault(_FragmentRequest2);
 
@@ -42873,7 +43081,7 @@ var HeadRequest = (function (_FragmentRequest) {
 exports['default'] = HeadRequest;
 module.exports = exports['default'];
 
-},{"160":160}],162:[function(_dereq_,module,exports){
+},{"163":163}],165:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43032,7 +43240,7 @@ var IsoBox = (function () {
 exports['default'] = IsoBox;
 module.exports = exports['default'];
 
-},{}],163:[function(_dereq_,module,exports){
+},{}],166:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43090,7 +43298,7 @@ var ManifestInfo = function ManifestInfo() {
 exports["default"] = ManifestInfo;
 module.exports = exports["default"];
 
-},{}],164:[function(_dereq_,module,exports){
+},{}],167:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43157,7 +43365,7 @@ var MediaInfo = function MediaInfo() {
 exports["default"] = MediaInfo;
 module.exports = exports["default"];
 
-},{}],165:[function(_dereq_,module,exports){
+},{}],168:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43220,7 +43428,7 @@ var MetricsList = function MetricsList() {
 exports["default"] = MetricsList;
 module.exports = exports["default"];
 
-},{}],166:[function(_dereq_,module,exports){
+},{}],169:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43277,7 +43485,7 @@ var StreamInfo = function StreamInfo() {
 exports["default"] = StreamInfo;
 module.exports = exports["default"];
 
-},{}],167:[function(_dereq_,module,exports){
+},{}],170:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43326,11 +43534,11 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var _constantsConstants = _dereq_(97);
+var _constantsConstants = _dereq_(100);
 
 var _constantsConstants2 = _interopRequireDefault(_constantsConstants);
 
-var _FragmentRequest2 = _dereq_(160);
+var _FragmentRequest2 = _dereq_(163);
 
 var _FragmentRequest3 = _interopRequireDefault(_FragmentRequest2);
 
@@ -43353,7 +43561,7 @@ var TextRequest = (function (_FragmentRequest) {
 exports['default'] = TextRequest;
 module.exports = exports['default'];
 
-},{"160":160,"97":97}],168:[function(_dereq_,module,exports){
+},{"100":100,"163":163}],171:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43412,7 +43620,7 @@ var TextTrackInfo = function TextTrackInfo() {
 exports["default"] = TextTrackInfo;
 module.exports = exports["default"];
 
-},{}],169:[function(_dereq_,module,exports){
+},{}],172:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43469,7 +43677,7 @@ var TrackInfo = function TrackInfo() {
 exports["default"] = TrackInfo;
 module.exports = exports["default"];
 
-},{}],170:[function(_dereq_,module,exports){
+},{}],173:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43541,7 +43749,7 @@ exports["default"] = URIFragmentData;
 */
 module.exports = exports["default"];
 
-},{}],171:[function(_dereq_,module,exports){
+},{}],174:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43608,7 +43816,7 @@ function BufferLevel() {
 exports["default"] = BufferLevel;
 module.exports = exports["default"];
 
-},{}],172:[function(_dereq_,module,exports){
+},{}],175:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43649,7 +43857,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'd
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-var _controllersBufferController = _dereq_(102);
+var _controllersBufferController = _dereq_(105);
 
 var _controllersBufferController2 = _interopRequireDefault(_controllersBufferController);
 
@@ -43679,7 +43887,7 @@ function BufferState() {
 exports['default'] = BufferState;
 module.exports = exports['default'];
 
-},{"102":102}],173:[function(_dereq_,module,exports){
+},{"105":105}],176:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43749,7 +43957,7 @@ function DVRInfo() {
 exports["default"] = DVRInfo;
 module.exports = exports["default"];
 
-},{}],174:[function(_dereq_,module,exports){
+},{}],177:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43813,7 +44021,7 @@ function DroppedFrames() {
 exports["default"] = DroppedFrames;
 module.exports = exports["default"];
 
-},{}],175:[function(_dereq_,module,exports){
+},{}],178:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -43992,7 +44200,7 @@ HTTPRequest.OTHER_TYPE = 'other';
 exports.HTTPRequest = HTTPRequest;
 exports.HTTPRequestTrace = HTTPRequestTrace;
 
-},{}],176:[function(_dereq_,module,exports){
+},{}],179:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -44190,7 +44398,7 @@ exports.ManifestUpdate = ManifestUpdate;
 exports.ManifestUpdateStreamInfo = ManifestUpdateStreamInfo;
 exports.ManifestUpdateTrackInfo = ManifestUpdateTrackInfo;
 
-},{}],177:[function(_dereq_,module,exports){
+},{}],180:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -44350,7 +44558,7 @@ PlayListTrace.FAILURE_STOP_REASON = 'failure';
 exports.PlayList = PlayList;
 exports.PlayListTrace = PlayListTrace;
 
-},{}],178:[function(_dereq_,module,exports){
+},{}],181:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -44430,7 +44638,7 @@ function RepresentationSwitch() {
 exports["default"] = RepresentationSwitch;
 module.exports = exports["default"];
 
-},{}],179:[function(_dereq_,module,exports){
+},{}],182:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -44495,7 +44703,7 @@ function RequestsQueue() {
 exports["default"] = RequestsQueue;
 module.exports = exports["default"];
 
-},{}],180:[function(_dereq_,module,exports){
+},{}],183:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
@@ -44596,7 +44804,7 @@ function SchedulingInfo() {
 exports["default"] = SchedulingInfo;
 module.exports = exports["default"];
 
-},{}],181:[function(_dereq_,module,exports){
+},{}],184:[function(_dereq_,module,exports){
 /**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
