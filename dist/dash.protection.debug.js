@@ -1935,8 +1935,6 @@ function ProtectionController(config) {
     }
 
     function onKeyMessage(e) {
-        // Received License Request From CDM
-        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -1990,11 +1988,31 @@ function ProtectionController(config) {
         } else {
             url = keySystem.getLicenseServerURLFromInitData(_CommonEncryption2['default'].getPSSHData(sessionToken.initData));
             if (!url) {
-                url = e.data.laURL;
+                url = e.data.defaultURL;
             }
         }
         // Possibly update or override the URL based on the message
         url = licenseServerData.getServerURLFromMessage(url, message, messageType);
+
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            var msgString = String.fromCharCode.apply(null, new Uint8Array(message));
+            var xhrMsg = null;
+            var decoded_message = window.atob(msgString);
+
+            // Use the URL to decide if sending a license request or a provisioning request
+            if (url.includes('certificateprovisioning')) {
+                log('DRM [Widevine]: Sending message to ID server');
+                url = url + '&signedRequest=' + decoded_message;
+                messageType = 'provision-request';
+            } else {
+                log('DRM [Widevine]: Sending message to license server');
+                xhrMsg = message;
+            }
+
+            log('DRM [Widevine]: URL = ' + url);
+            log('DRM [Widevine]: message type = ' + messageType);
+        }
 
         // Ensure valid license server URL
         if (!url) {
@@ -2045,7 +2063,19 @@ function ProtectionController(config) {
 
         // Send License Request
         context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
-        xhr.send(keySystem.getLicenseRequestFromMessage(message));
+
+        var messageToSend = keySystem.getLicenseRequestFromMessage(message);
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            if (messageType === 'provision-request') {
+                log('DRM [Widevine]: Provision request being done via URL');
+                messageToSend = null;
+            } else {
+                log('DRM [Widevine]: License request being sent');
+            }
+        }
+
+        xhr.send(messageToSend);
     }
 
     function onNeedKey(event) {
@@ -2919,6 +2949,7 @@ var schemeIdURI = 'urn:uuid:' + uuid;
 function KeySystemWidevine() {
 
     var instance = undefined;
+    var messageFormat = 'utf8';
     var protData = null;
 
     function init(protectionData) {
@@ -2979,7 +3010,16 @@ function KeySystemWidevine() {
     }
 
     function getLicenseRequestFromMessage(message) {
-        return new Uint8Array(message);
+        var dataview = messageFormat === 'utf16' ? new Uint16Array(message) : new Uint8Array(message);
+
+        var b64msg = String.fromCharCode.apply(null, dataview);
+        var msg = window.atob(b64msg);
+        var byteNumbers = new Array(msg.length);
+        for (var i = 0; i < msg.length; i++) {
+            byteNumbers[i] = msg.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        return byteArray;
     }
 
     function getLicenseServerURLFromInitData() /*initData*/{
@@ -3258,6 +3298,7 @@ function ProtectionModel_01b(config) {
             pendingSessions.push(newSession);
 
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.START_GENERATE_KEY_REQUEST);
             videoElement[api.generateKeyRequest](keySystem.systemString, new Uint8Array(initData));
 
             return newSession;
@@ -3270,9 +3311,11 @@ function ProtectionModel_01b(config) {
         var sessionID = sessionToken.sessionID;
         if (!protectionKeyController.isClearKey(keySystem)) {
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.ADD_KEY);
             videoElement[api.addKey](keySystem.systemString, new Uint8Array(message), new Uint8Array(sessionToken.initData), sessionID);
         } else {
             // For clearkey, message is a ClearKeyKeySet
+            context.performance.markOnce(context.marks.ADD_KEY);
             for (var i = 0; i < message.keyPairs.length; i++) {
                 videoElement[api.addKey](keySystem.systemString, message.keyPairs[i].key, message.keyPairs[i].keyID, sessionID);
             }
@@ -3295,6 +3338,7 @@ function ProtectionModel_01b(config) {
                 switch (event.type) {
 
                     case api.needkey:
+                        context.performance.markOnce(context.marks.EVENT_NEEDKEY);
                         var initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                         eventBus.trigger(_coreEventsEvents2['default'].NEED_KEY, { key: new _voNeedKey2['default'](initData, 'cenc') });
                         break;
@@ -3336,6 +3380,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keyadded:
+                        context.performance.markOnce(context.marks.EVENT_ADDKEY);
                         sessionToken = findSessionByID(sessions, event.sessionId);
                         if (!sessionToken) {
                             sessionToken = findSessionByID(pendingSessions, event.sessionId);
@@ -3350,6 +3395,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keymessage:
+                        context.performance.markOnce(context.marks.END_GENERATE_KEY_REQUEST);
 
                         // If this CDM does not support session IDs, we will be limited
                         // to a single session
@@ -3814,6 +3860,7 @@ function ProtectionModel_21Jan2015(config) {
                         break;
 
                     case 'message':
+                        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
                         var message = ArrayBuffer.isView(event.message) ? event.message.buffer : event.message;
                         eventBus.trigger(_coreEventsEvents2['default'].INTERNAL_KEY_MESSAGE, { data: new _voKeyMessage2['default'](this, message, undefined, event.messageType) });
                         break;

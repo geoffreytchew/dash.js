@@ -221,6 +221,7 @@ function ProtectionModel_01b(config) {
             pendingSessions.push(newSession);
 
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.START_GENERATE_KEY_REQUEST);
             videoElement[api.generateKeyRequest](keySystem.systemString, new Uint8Array(initData));
 
             return newSession;
@@ -235,10 +236,12 @@ function ProtectionModel_01b(config) {
         let sessionID = sessionToken.sessionID;
         if (!protectionKeyController.isClearKey(keySystem)) {
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.ADD_KEY);
             videoElement[api.addKey](keySystem.systemString,
                 new Uint8Array(message), new Uint8Array(sessionToken.initData), sessionID);
         } else {
             // For clearkey, message is a ClearKeyKeySet
+            context.performance.markOnce(context.marks.ADD_KEY);
             for (let i = 0; i < message.keyPairs.length; i++) {
                 videoElement[api.addKey](keySystem.systemString,
                     message.keyPairs[i].key, message.keyPairs[i].keyID, sessionID);
@@ -262,6 +265,7 @@ function ProtectionModel_01b(config) {
                 switch (event.type) {
 
                     case api.needkey:
+                        context.performance.markOnce(context.marks.EVENT_NEEDKEY);
                         let initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                         eventBus.trigger(Events.NEED_KEY, {key: new NeedKey(initData, 'cenc')});
                         break;
@@ -303,6 +307,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keyadded:
+                        context.performance.markOnce(context.marks.EVENT_ADDKEY);
                         sessionToken = findSessionByID(sessions, event.sessionId);
                         if (!sessionToken) {
                             sessionToken = findSessionByID(pendingSessions, event.sessionId);
@@ -317,6 +322,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keymessage:
+                        context.performance.markOnce(context.marks.END_GENERATE_KEY_REQUEST);
 
                         // If this CDM does not support session IDs, we will be limited
                         // to a single session

@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+    <head>
+        <title>DRM Playready Test</title>
+        <style>
+            video {
+                width: 640px;
+                height: 360px;
+            }
+        </style>
+    </head>
+    <body>
+        <div>
+            <video id="videoPlayer" controls></video>
+        </div>
+        <script src="dash.all.debug.js"></script>
+        <script>
+            (function(){
+                // PlayReady URLs
+                //const LS_URL = 'http://playready.directtaps.net/pr/svc/rightsmanager.asmx?PlayRight=1&UseSimpleNonPersistentLicense=1';
+                const LS_URL = 'http://test.playready.microsoft.com/service/rightsmanager.asmx?PlayRight=1&UseSimpleNonPersistentLicense=1';
+                const CONTENT_URL = 'https://demo.unified-streaming.com/video/tears-of-steel/tears-of-steel-dash-playready.ism/.mpd';
+
+                var player = dashjs.MediaPlayer().create();
+                var protData = { 'com.microsoft.playready' : { serverURL: LS_URL } };
+                player.setProtectionData(protData);
+                player.initialize(document.querySelector("#videoPlayer"), CONTENT_URL, true);
+            })();
+        </script>
+    </body>
+</html>

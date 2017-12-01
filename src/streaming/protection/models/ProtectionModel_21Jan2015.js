@@ -337,6 +337,7 @@ function ProtectionModel_21Jan2015(config) {
                         break;
 
                     case 'message':
+                        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
                         let message = ArrayBuffer.isView(event.message) ? event.message.buffer : event.message;
                         eventBus.trigger(Events.INTERNAL_KEY_MESSAGE, {data: new KeyMessage(this, message, undefined, event.messageType)});
                         break;

@@ -433,8 +433,6 @@ function ProtectionController(config) {
     }
 
     function onKeyMessage(e) {
-        // Received License Request From CDM
-        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -488,11 +486,31 @@ function ProtectionController(config) {
         } else {
             url = keySystem.getLicenseServerURLFromInitData(CommonEncryption.getPSSHData(sessionToken.initData));
             if (!url) {
-                url = e.data.laURL;
+                url = e.data.defaultURL;
             }
         }
         // Possibly update or override the URL based on the message
         url = licenseServerData.getServerURLFromMessage(url, message, messageType);
+
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            var msgString = String.fromCharCode.apply(null, new Uint8Array(message));
+            var xhrMsg = null;
+            var decoded_message = window.atob(msgString);
+
+            // Use the URL to decide if sending a license request or a provisioning request
+            if (url.includes('certificateprovisioning')) {
+                log('DRM [Widevine]: Sending message to ID server');
+                url = url + '&signedRequest=' + decoded_message;
+                messageType = 'provision-request';
+            } else {
+                log('DRM [Widevine]: Sending message to license server');
+                xhrMsg = message;
+            }
+
+            log('DRM [Widevine]: URL = ' + url);
+            log('DRM [Widevine]: message type = ' + messageType);
+        }
 
         // Ensure valid license server URL
         if (!url) {
@@ -547,7 +565,20 @@ function ProtectionController(config) {
 
         // Send License Request
         context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
-        xhr.send(keySystem.getLicenseRequestFromMessage(message));
+
+        var messageToSend = keySystem.getLicenseRequestFromMessage(message);
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            if (messageType === 'provision-request') {
+                log('DRM [Widevine]: Provision request being done via URL');
+                messageToSend = null;
+            }
+            else {
+                log('DRM [Widevine]: License request being sent');
+            }
+        }
+
+        xhr.send(messageToSend);
     }
 
     function onNeedKey(event) {

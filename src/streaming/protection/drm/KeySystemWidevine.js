@@ -47,6 +47,7 @@ import BASE64 from '../../../../externals/base64';
 function KeySystemWidevine() {
 
     let instance;
+    let messageFormat = 'utf8';
     let protData = null;
 
     function init(protectionData) {
@@ -106,7 +107,16 @@ function KeySystemWidevine() {
     }
 
     function getLicenseRequestFromMessage(message) {
-        return new Uint8Array(message);
+        var dataview = messageFormat === 'utf16' ? new Uint16Array(message) : new Uint8Array(message);
+
+        var b64msg = String.fromCharCode.apply(null, dataview);
+        var msg = window.atob(b64msg);
+        var byteNumbers = new Array(msg.length);
+        for (var i = 0; i < msg.length; i++) {
+            byteNumbers[i] = msg.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        return byteArray;
     }
 
     function getLicenseServerURLFromInitData( /*initData*/ ) {

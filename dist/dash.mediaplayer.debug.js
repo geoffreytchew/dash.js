@@ -22215,41 +22215,58 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 var Marks = function Marks() {
     _classCallCheck(this, Marks);
 
+    //
+    // Common Marks
+    //
+
     // MediaPlayer initialize is called
     this.INITIALIZE_PLAYER = 'initializePlayer';
-
-    // 'encrypted' event is received from HtmlMediaElement
-    this.EVENT_ENCRYPTED = 'eventEncrypted';
-
-    // Before navigator.requestMediaKeySystemAccess is called
-    this.START_REQUEST_MEDIA_KEY_ACCESS = 'startRequestMediaKeyAccess';
-    // navigator.requestMediaKeySystemAccess promise resolved
-    this.END_REQUEST_MEDIA_KEY_ACCESS = 'endRequestMediaKeyAccess';
-
-    // Before MediaKeySystemAccess.createMediaKeys is called
-    this.START_CREATE_MEDIA_KEYS = 'startCreateMediaKeys';
-    // After call to MediaKeySystemAccess.createMediaKeys returns
-    this.END_CREATE_MEDIA_KEYS = 'endCreateMediaKeys';
-
-    // Before MediaKeys.createSession is called
-    this.START_CREATE_SESSION = 'startCreateSession';
-    // After call to MediaKeys.createSession returns
-    this.END_CREATE_SESSION = 'endCreateSession';
-
-    // Before MediaKeySession.generateRequest is called
-    this.START_GENERATE_LICENSE_REQUEST = 'startGenerateLicenseRequest';
-    // Message event containing license request received
-    this.END_GENERATE_LICENSE_REQUEST = 'endGenerateLicenseRequest';
-
     // Before license request received from CDM is sent to license server
     this.START_SEND_LICENSE_REQUEST = 'startSendLicenseRequest';
     // After license response is received from license server
     this.END_SEND_LICENSE_REQUEST = 'endSendLicenseRequest';
-
-    // Before MediaKeySession.update is called
-    this.UPDATE_MEDIA_KEY_SESSION = 'updateMediaKeySession';
     // 'canplay' event is received from HtmlMediaElement
     this.EVENT_CAN_PLAY = 'eventCanPlay';
+
+    //
+    // EME v1 Marks
+    //
+
+    // 'needkey' event is received
+    this.EVENT_NEEDKEY = 'eventNeedKey';
+    // Before generateKeyRequest is called
+    this.START_GENERATE_KEY_REQUEST = 'startGenerateKeyRequest';
+    // 'keymessage' event containing key request received
+    this.END_GENERATE_KEY_REQUEST = 'endGenerateKeyRequest';
+    // Before addKey is called
+    this.ADD_KEY = 'addKey';
+    // 'addkey' event is received
+    this.EVENT_ADDKEY = 'eventAddKey';
+
+    //
+    // EME v3+ Marks
+    //
+
+    // 'encrypted' event is received from HtmlMediaElement
+    this.EVENT_ENCRYPTED = 'eventEncrypted';
+    // Before navigator.requestMediaKeySystemAccess is called
+    this.START_REQUEST_MEDIA_KEY_ACCESS = 'startRequestMediaKeyAccess';
+    // navigator.requestMediaKeySystemAccess promise resolved
+    this.END_REQUEST_MEDIA_KEY_ACCESS = 'endRequestMediaKeyAccess';
+    // Before MediaKeySystemAccess.createMediaKeys is called
+    this.START_CREATE_MEDIA_KEYS = 'startCreateMediaKeys';
+    // After call to MediaKeySystemAccess.createMediaKeys returns
+    this.END_CREATE_MEDIA_KEYS = 'endCreateMediaKeys';
+    // Before MediaKeys.createSession is called
+    this.START_CREATE_SESSION = 'startCreateSession';
+    // After call to MediaKeys.createSession returns
+    this.END_CREATE_SESSION = 'endCreateSession';
+    // Before MediaKeySession.generateRequest is called
+    this.START_GENERATE_LICENSE_REQUEST = 'startGenerateLicenseRequest';
+    // Message event containing license request received
+    this.END_GENERATE_LICENSE_REQUEST = 'endGenerateLicenseRequest';
+    // Before MediaKeySession.update is called
+    this.UPDATE_MEDIA_KEY_SESSION = 'updateMediaKeySession';
 };
 
 exports['default'] = Marks;
@@ -22291,18 +22308,35 @@ var MetricsLogger = (function () {
         key: 'logAll',
         value: function logAll() {
             var timestamp = new Date();
-            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Call returns', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_REQUEST_MEDIA_KEY_ACCESS);
-            this.log('Start Player calls MediaKeySystemAccess.createMediaKeys  -> End Call returns', timestamp, this.marks.START_CREATE_MEDIA_KEYS, this.marks.END_CREATE_MEDIA_KEYS);
-            this.log('Start Player calls MediaKeys.createSession               -> End Call returns', timestamp, this.marks.START_CREATE_SESSION, this.marks.END_CREATE_SESSION);
-            this.log('Start Player calls MediaKeySession.generateRequest -> End Player receives license request from CDM', timestamp, this.marks.START_GENERATE_LICENSE_REQUEST, this.marks.END_GENERATE_LICENSE_REQUEST);
-            this.log('Start Player sends license request -> End License response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
 
-            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
-            this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
-            this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+            var isEmeV3 = this.performance.hasMark(this.marks.EVENT_ENCRYPTED);
+
+            if (isEmeV3) {
+                this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Call returns', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_REQUEST_MEDIA_KEY_ACCESS);
+                this.log('Start Player calls MediaKeySystemAccess.createMediaKeys  -> End Call returns', timestamp, this.marks.START_CREATE_MEDIA_KEYS, this.marks.END_CREATE_MEDIA_KEYS);
+                this.log('Start Player calls MediaKeys.createSession               -> End Call returns', timestamp, this.marks.START_CREATE_SESSION, this.marks.END_CREATE_SESSION);
+                this.log('Start Player calls MediaKeySession.generateRequest -> End Player receives license request from CDM', timestamp, this.marks.START_GENERATE_LICENSE_REQUEST, this.marks.END_GENERATE_LICENSE_REQUEST);
+                this.log('Start Player sends license request -> End License response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+
+                this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
+                this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+                this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
+            } else {
+                // EME V1
+                this.log('Start Player calls generateKeyRequest -> End Player receives key request from CDM', timestamp, this.marks.START_GENERATE_KEY_REQUEST, this.marks.END_GENERATE_KEY_REQUEST);
+                this.log('Start Player sends key request -> End key response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+
+                this.log('Start Player receives needkey event -> End Player receives key request from CDM', timestamp, this.marks.EVENT_NEEDKEY, this.marks.END_GENERATE_KEY_REQUEST);
+                this.log('Start Player receives key request from CDM -> End Player receives key response', timestamp, this.marks.END_GENERATE_KEY_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+                this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+                this.log('Start needkey event -> End initial canplay event', timestamp, this.marks.EVENT_NEEDKEY, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives key request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_KEY_REQUEST, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player provides key response to CDM  -> End Initial canplay event', timestamp, this.marks.ADD_KEY, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives addkey event -> End Initial canplay event', timestamp, this.marks.EVENT_ADDKEY, this.marks.EVENT_CAN_PLAY);
+            }
         }
     }]);
 

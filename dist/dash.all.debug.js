@@ -22396,41 +22396,58 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 var Marks = function Marks() {
     _classCallCheck(this, Marks);
 
+    //
+    // Common Marks
+    //
+
     // MediaPlayer initialize is called
     this.INITIALIZE_PLAYER = 'initializePlayer';
-
-    // 'encrypted' event is received from HtmlMediaElement
-    this.EVENT_ENCRYPTED = 'eventEncrypted';
-
-    // Before navigator.requestMediaKeySystemAccess is called
-    this.START_REQUEST_MEDIA_KEY_ACCESS = 'startRequestMediaKeyAccess';
-    // navigator.requestMediaKeySystemAccess promise resolved
-    this.END_REQUEST_MEDIA_KEY_ACCESS = 'endRequestMediaKeyAccess';
-
-    // Before MediaKeySystemAccess.createMediaKeys is called
-    this.START_CREATE_MEDIA_KEYS = 'startCreateMediaKeys';
-    // After call to MediaKeySystemAccess.createMediaKeys returns
-    this.END_CREATE_MEDIA_KEYS = 'endCreateMediaKeys';
-
-    // Before MediaKeys.createSession is called
-    this.START_CREATE_SESSION = 'startCreateSession';
-    // After call to MediaKeys.createSession returns
-    this.END_CREATE_SESSION = 'endCreateSession';
-
-    // Before MediaKeySession.generateRequest is called
-    this.START_GENERATE_LICENSE_REQUEST = 'startGenerateLicenseRequest';
-    // Message event containing license request received
-    this.END_GENERATE_LICENSE_REQUEST = 'endGenerateLicenseRequest';
-
     // Before license request received from CDM is sent to license server
     this.START_SEND_LICENSE_REQUEST = 'startSendLicenseRequest';
     // After license response is received from license server
     this.END_SEND_LICENSE_REQUEST = 'endSendLicenseRequest';
-
-    // Before MediaKeySession.update is called
-    this.UPDATE_MEDIA_KEY_SESSION = 'updateMediaKeySession';
     // 'canplay' event is received from HtmlMediaElement
     this.EVENT_CAN_PLAY = 'eventCanPlay';
+
+    //
+    // EME v1 Marks
+    //
+
+    // 'needkey' event is received
+    this.EVENT_NEEDKEY = 'eventNeedKey';
+    // Before generateKeyRequest is called
+    this.START_GENERATE_KEY_REQUEST = 'startGenerateKeyRequest';
+    // 'keymessage' event containing key request received
+    this.END_GENERATE_KEY_REQUEST = 'endGenerateKeyRequest';
+    // Before addKey is called
+    this.ADD_KEY = 'addKey';
+    // 'addkey' event is received
+    this.EVENT_ADDKEY = 'eventAddKey';
+
+    //
+    // EME v3+ Marks
+    //
+
+    // 'encrypted' event is received from HtmlMediaElement
+    this.EVENT_ENCRYPTED = 'eventEncrypted';
+    // Before navigator.requestMediaKeySystemAccess is called
+    this.START_REQUEST_MEDIA_KEY_ACCESS = 'startRequestMediaKeyAccess';
+    // navigator.requestMediaKeySystemAccess promise resolved
+    this.END_REQUEST_MEDIA_KEY_ACCESS = 'endRequestMediaKeyAccess';
+    // Before MediaKeySystemAccess.createMediaKeys is called
+    this.START_CREATE_MEDIA_KEYS = 'startCreateMediaKeys';
+    // After call to MediaKeySystemAccess.createMediaKeys returns
+    this.END_CREATE_MEDIA_KEYS = 'endCreateMediaKeys';
+    // Before MediaKeys.createSession is called
+    this.START_CREATE_SESSION = 'startCreateSession';
+    // After call to MediaKeys.createSession returns
+    this.END_CREATE_SESSION = 'endCreateSession';
+    // Before MediaKeySession.generateRequest is called
+    this.START_GENERATE_LICENSE_REQUEST = 'startGenerateLicenseRequest';
+    // Message event containing license request received
+    this.END_GENERATE_LICENSE_REQUEST = 'endGenerateLicenseRequest';
+    // Before MediaKeySession.update is called
+    this.UPDATE_MEDIA_KEY_SESSION = 'updateMediaKeySession';
 };
 
 exports['default'] = Marks;
@@ -22472,18 +22489,35 @@ var MetricsLogger = (function () {
         key: 'logAll',
         value: function logAll() {
             var timestamp = new Date();
-            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Call returns', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_REQUEST_MEDIA_KEY_ACCESS);
-            this.log('Start Player calls MediaKeySystemAccess.createMediaKeys  -> End Call returns', timestamp, this.marks.START_CREATE_MEDIA_KEYS, this.marks.END_CREATE_MEDIA_KEYS);
-            this.log('Start Player calls MediaKeys.createSession               -> End Call returns', timestamp, this.marks.START_CREATE_SESSION, this.marks.END_CREATE_SESSION);
-            this.log('Start Player calls MediaKeySession.generateRequest -> End Player receives license request from CDM', timestamp, this.marks.START_GENERATE_LICENSE_REQUEST, this.marks.END_GENERATE_LICENSE_REQUEST);
-            this.log('Start Player sends license request -> End License response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
 
-            this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
-            this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
-            this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
-            this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+            var isEmeV3 = this.performance.hasMark(this.marks.EVENT_ENCRYPTED);
+
+            if (isEmeV3) {
+                this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Call returns', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_REQUEST_MEDIA_KEY_ACCESS);
+                this.log('Start Player calls MediaKeySystemAccess.createMediaKeys  -> End Call returns', timestamp, this.marks.START_CREATE_MEDIA_KEYS, this.marks.END_CREATE_MEDIA_KEYS);
+                this.log('Start Player calls MediaKeys.createSession               -> End Call returns', timestamp, this.marks.START_CREATE_SESSION, this.marks.END_CREATE_SESSION);
+                this.log('Start Player calls MediaKeySession.generateRequest -> End Player receives license request from CDM', timestamp, this.marks.START_GENERATE_LICENSE_REQUEST, this.marks.END_GENERATE_LICENSE_REQUEST);
+                this.log('Start Player sends license request -> End License response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+
+                this.log('Start Player calls navigator.requestMediaKeySystemAccess -> End Player receives license request from CDM', timestamp, this.marks.START_REQUEST_MEDIA_KEY_ACCESS, this.marks.END_GENERATE_LICENSE_REQUEST);
+                this.log('Start Player receives license request from CDM -> End Player receives license response', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+                this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Encrypt event -> End Initial canplay event', timestamp, this.marks.EVENT_ENCRYPTED, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives license request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_LICENSE_REQUEST, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player provides license response to CDM  -> End Initial canplay event', timestamp, this.marks.UPDATE_MEDIA_KEY_SESSION, this.marks.EVENT_CAN_PLAY);
+            } else {
+                // EME V1
+                this.log('Start Player calls generateKeyRequest -> End Player receives key request from CDM', timestamp, this.marks.START_GENERATE_KEY_REQUEST, this.marks.END_GENERATE_KEY_REQUEST);
+                this.log('Start Player sends key request -> End key response received', timestamp, this.marks.START_SEND_LICENSE_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+
+                this.log('Start Player receives needkey event -> End Player receives key request from CDM', timestamp, this.marks.EVENT_NEEDKEY, this.marks.END_GENERATE_KEY_REQUEST);
+                this.log('Start Player receives key request from CDM -> End Player receives key response', timestamp, this.marks.END_GENERATE_KEY_REQUEST, this.marks.END_SEND_LICENSE_REQUEST);
+                this.log('Start Initialize player -> End Initial canplay event', timestamp, this.marks.INITIALIZE_PLAYER, this.marks.EVENT_CAN_PLAY);
+                this.log('Start needkey event -> End initial canplay event', timestamp, this.marks.EVENT_NEEDKEY, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives key request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_KEY_REQUEST, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player provides key response to CDM  -> End Initial canplay event', timestamp, this.marks.ADD_KEY, this.marks.EVENT_CAN_PLAY);
+                this.log('Start Player receives addkey event -> End Initial canplay event', timestamp, this.marks.EVENT_ADDKEY, this.marks.EVENT_CAN_PLAY);
+            }
         }
     }]);
 
@@ -39738,8 +39772,6 @@ function ProtectionController(config) {
     }
 
     function onKeyMessage(e) {
-        // Received License Request From CDM
-        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
         log('DRM: onKeyMessage');
         if (e.error) {
             log(e.error);
@@ -39793,11 +39825,31 @@ function ProtectionController(config) {
         } else {
             url = keySystem.getLicenseServerURLFromInitData(_CommonEncryption2['default'].getPSSHData(sessionToken.initData));
             if (!url) {
-                url = e.data.laURL;
+                url = e.data.defaultURL;
             }
         }
         // Possibly update or override the URL based on the message
         url = licenseServerData.getServerURLFromMessage(url, message, messageType);
+
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            var msgString = String.fromCharCode.apply(null, new Uint8Array(message));
+            var xhrMsg = null;
+            var decoded_message = window.atob(msgString);
+
+            // Use the URL to decide if sending a license request or a provisioning request
+            if (url.includes('certificateprovisioning')) {
+                log('DRM [Widevine]: Sending message to ID server');
+                url = url + '&signedRequest=' + decoded_message;
+                messageType = 'provision-request';
+            } else {
+                log('DRM [Widevine]: Sending message to license server');
+                xhrMsg = message;
+            }
+
+            log('DRM [Widevine]: URL = ' + url);
+            log('DRM [Widevine]: message type = ' + messageType);
+        }
 
         // Ensure valid license server URL
         if (!url) {
@@ -39848,7 +39900,19 @@ function ProtectionController(config) {
 
         // Send License Request
         context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
-        xhr.send(keySystem.getLicenseRequestFromMessage(message));
+
+        var messageToSend = keySystem.getLicenseRequestFromMessage(message);
+        // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
+        if (keySystemString === 'com.widevine.alpha') {
+            if (messageType === 'provision-request') {
+                log('DRM [Widevine]: Provision request being done via URL');
+                messageToSend = null;
+            } else {
+                log('DRM [Widevine]: License request being sent');
+            }
+        }
+
+        xhr.send(messageToSend);
     }
 
     function onNeedKey(event) {
@@ -40722,6 +40786,7 @@ var schemeIdURI = 'urn:uuid:' + uuid;
 function KeySystemWidevine() {
 
     var instance = undefined;
+    var messageFormat = 'utf8';
     var protData = null;
 
     function init(protectionData) {
@@ -40782,7 +40847,16 @@ function KeySystemWidevine() {
     }
 
     function getLicenseRequestFromMessage(message) {
-        return new Uint8Array(message);
+        var dataview = messageFormat === 'utf16' ? new Uint16Array(message) : new Uint8Array(message);
+
+        var b64msg = String.fromCharCode.apply(null, dataview);
+        var msg = window.atob(b64msg);
+        var byteNumbers = new Array(msg.length);
+        for (var i = 0; i < msg.length; i++) {
+            byteNumbers[i] = msg.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        return byteArray;
     }
 
     function getLicenseServerURLFromInitData() /*initData*/{
@@ -41061,6 +41135,7 @@ function ProtectionModel_01b(config) {
             pendingSessions.push(newSession);
 
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.START_GENERATE_KEY_REQUEST);
             videoElement[api.generateKeyRequest](keySystem.systemString, new Uint8Array(initData));
 
             return newSession;
@@ -41073,9 +41148,11 @@ function ProtectionModel_01b(config) {
         var sessionID = sessionToken.sessionID;
         if (!protectionKeyController.isClearKey(keySystem)) {
             // Send our request to the CDM
+            context.performance.markOnce(context.marks.ADD_KEY);
             videoElement[api.addKey](keySystem.systemString, new Uint8Array(message), new Uint8Array(sessionToken.initData), sessionID);
         } else {
             // For clearkey, message is a ClearKeyKeySet
+            context.performance.markOnce(context.marks.ADD_KEY);
             for (var i = 0; i < message.keyPairs.length; i++) {
                 videoElement[api.addKey](keySystem.systemString, message.keyPairs[i].key, message.keyPairs[i].keyID, sessionID);
             }
@@ -41098,6 +41175,7 @@ function ProtectionModel_01b(config) {
                 switch (event.type) {
 
                     case api.needkey:
+                        context.performance.markOnce(context.marks.EVENT_NEEDKEY);
                         var initData = ArrayBuffer.isView(event.initData) ? event.initData.buffer : event.initData;
                         eventBus.trigger(_coreEventsEvents2['default'].NEED_KEY, { key: new _voNeedKey2['default'](initData, 'cenc') });
                         break;
@@ -41139,6 +41217,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keyadded:
+                        context.performance.markOnce(context.marks.EVENT_ADDKEY);
                         sessionToken = findSessionByID(sessions, event.sessionId);
                         if (!sessionToken) {
                             sessionToken = findSessionByID(pendingSessions, event.sessionId);
@@ -41153,6 +41232,7 @@ function ProtectionModel_01b(config) {
                         break;
 
                     case api.keymessage:
+                        context.performance.markOnce(context.marks.END_GENERATE_KEY_REQUEST);
 
                         // If this CDM does not support session IDs, we will be limited
                         // to a single session
@@ -41617,6 +41697,7 @@ function ProtectionModel_21Jan2015(config) {
                         break;
 
                     case 'message':
+                        context.performance.markOnce(context.marks.END_GENERATE_LICENSE_REQUEST);
                         var message = ArrayBuffer.isView(event.message) ? event.message.buffer : event.message;
                         eventBus.trigger(_coreEventsEvents2['default'].INTERNAL_KEY_MESSAGE, { data: new _voKeyMessage2['default'](this, message, undefined, event.messageType) });
                         break;
