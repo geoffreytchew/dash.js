@@ -8,13 +8,13 @@ class MetricsLogger {
 
     log(description, timestamp, startMark, endMark) {
         if ( !this.performance.hasMark(startMark) ) {
-            console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + startMark + ' was not set');
+            console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + 'Mark ' + startMark + ' was not set');
         }
         else if ( !this.performance.hasMark(endMark) ) {
-            console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + endMark + ' was not set');
+            console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + 'Mark ' + endMark + ' was not set');
         }
         else {
-            console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + this.performance.measure(startMark, endMark) + ' millis');
+            console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + this.performance.measure(startMark, endMark) + ' millis');
         }
     }
 
