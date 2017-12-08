@@ -15,6 +15,16 @@ class Marks {
 
 
         //
+        // Sec Client API Marks
+        //
+
+        this.START_SEC_CLIENT_ACQUIRE_LICENSE = 'startSecClientAcquireLicense';
+        this.END_SEC_CLIENT_ACQUIRE_LICENSE = 'endSecClientAcquireLicense';
+        this.START_SEC_CLIENT_SEND_TO_MDS = 'startSecClientSendToMds';
+        this.END_SEC_CLIENT_SEND_TO_MDS = 'endSecClientSendToMds';
+
+
+        //
         // EME v1 Marks
         //
 

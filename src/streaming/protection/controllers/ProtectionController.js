@@ -36,6 +36,7 @@ import KeySystemConfiguration from '../vo/KeySystemConfiguration';
 import FactoryMaker from '../../../core/FactoryMaker';
 import Protection from '../Protection';
 import BASE64 from '../../../../externals/base64';
+import { acquireLicense } from '../../../secclientapi/SecClient.js';
 
 /**
  * @module ProtectionController
@@ -469,7 +470,7 @@ function ProtectionController(config) {
         }
 
         // All remaining key system scenarios require a request to a remote license server
-        let xhr = new XMLHttpRequest();
+        // let xhr = new XMLHttpRequest(); // SEC_CLIENT_API_CHANGES
 
         // Determine license server URL
         let url = null;
@@ -518,6 +519,16 @@ function ProtectionController(config) {
             return;
         }
 
+        // Create args object for call to acquireLicense
+        var args = {};
+        args.serviceHostUrl = url;
+        args.keySystem = keySystemString;
+        args.licenseRequest = message;
+        args.contentMetadata = keySystem.getLicenseServerURLFromInitData(CommonEncryption.getPSSHData(sessionToken.initData));
+        args.mediaUsage = 'stream';
+        args.context = context;
+
+        /*
         xhr.open(licenseServerData.getHTTPMethod(messageType), url, true);
         xhr.responseType = licenseServerData.getResponseType(keySystemString, messageType);
         xhr.onload = function () {
@@ -562,10 +573,23 @@ function ProtectionController(config) {
         if (protData && protData.withCredentials) {
             xhr.withCredentials = true;
         }
+        */
 
         // Send License Request
         context.performance.markOnce(context.marks.START_SEND_LICENSE_REQUEST);
+        acquireLicense(args).then( licObj => {
+            context.performance.markOnce(context.marks.END_SEND_LICENSE_REQUEST);
+            sendLicenseRequestCompleteEvent(eventData);
+            protectionModel.updateKeySession(sessionToken,
+                licenseServerData.getLicenseMessage(licObj.license, keySystemString, messageType));
+        })
+        .catch(function (err) {
+            context.performance.markOnce(context.marks.END_SEND_LICENSE_REQUEST);
+            sendLicenseRequestCompleteEvent(eventData, 'DRM: ' + keySystemString + ' error = ' + err.toString());
+        });
 
+        /*
+        TODO: Add to Sec Client API???
         var messageToSend = keySystem.getLicenseRequestFromMessage(message);
         // TODO Temporary workaround for provisioning in Widevine DRM until EME v3
         if (keySystemString === 'com.widevine.alpha') {
@@ -577,8 +601,10 @@ function ProtectionController(config) {
                 log('DRM [Widevine]: License request being sent');
             }
         }
-
+        */
+        /*
         xhr.send(messageToSend);
+        */
     }
 
     function onNeedKey(event) {

@@ -31,7 +31,8 @@
 import CommonEncryption from './../CommonEncryption';
 import KeySystemClearKey from './../drm/KeySystemClearKey';
 import KeySystemWidevine from './../drm/KeySystemWidevine';
-import KeySystemPlayReady from './../drm/KeySystemPlayReady';
+//import KeySystemPlayReady from './../drm/KeySystemPlayReady';
+import KeySystemPlayReadyComcast from './../drm/KeySystemPlayReadyComcast';
 import DRMToday from './../servers/DRMToday';
 import PlayReady from './../servers/PlayReady';
 import Widevine from './../servers/Widevine';
@@ -65,7 +66,9 @@ function ProtectionKeyController() {
         let keySystem;
 
         // PlayReady
-        keySystem = KeySystemPlayReady(context).getInstance();
+        // TODO: Have some way to easily switch between Comcast PlayReady and Standard
+        //keySystem = KeySystemPlayReady(context).getInstance();
+        keySystem = KeySystemPlayReadyComcast(context).getInstance();
         keySystems.push(keySystem);
 
         // Widevine

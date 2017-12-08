@@ -22229,6 +22229,15 @@ var Marks = function Marks() {
     this.EVENT_CAN_PLAY = 'eventCanPlay';
 
     //
+    // Sec Client API Marks
+    //
+
+    this.START_SEC_CLIENT_ACQUIRE_LICENSE = 'startSecClientAcquireLicense';
+    this.END_SEC_CLIENT_ACQUIRE_LICENSE = 'endSecClientAcquireLicense';
+    this.START_SEC_CLIENT_SEND_TO_MDS = 'startSecClientSendToMds';
+    this.END_SEC_CLIENT_SEND_TO_MDS = 'endSecClientSendToMds';
+
+    //
     // EME v1 Marks
     //
 
@@ -22297,11 +22306,11 @@ var MetricsLogger = (function () {
         key: 'log',
         value: function log(description, timestamp, startMark, endMark) {
             if (!this.performance.hasMark(startMark)) {
-                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + startMark + ' was not set');
+                console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + 'Mark ' + startMark + ' was not set');
             } else if (!this.performance.hasMark(endMark)) {
-                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + 'Mark ' + endMark + ' was not set');
+                console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + 'Mark ' + endMark + ' was not set');
             } else {
-                console.log(LOGGING_PREFIX + ' : ' + timestamp + ' : ' + description + ' : ' + this.performance.measure(startMark, endMark) + ' millis');
+                console.log(LOGGING_PREFIX + ' | ' + timestamp + ' | ' + description + ' | ' + this.performance.measure(startMark, endMark) + ' millis');
             }
         }
     }, {
