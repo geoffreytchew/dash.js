@@ -22345,6 +22345,11 @@ var MetricsLogger = (function () {
                 this.log('Start Player receives key request from CDM -> End Initial canplay event', timestamp, this.marks.END_GENERATE_KEY_REQUEST, this.marks.EVENT_CAN_PLAY);
                 this.log('Start Player provides key response to CDM  -> End Initial canplay event', timestamp, this.marks.ADD_KEY, this.marks.EVENT_CAN_PLAY);
                 this.log('Start Player receives addkey event -> End Initial canplay event', timestamp, this.marks.EVENT_ADDKEY, this.marks.EVENT_CAN_PLAY);
+
+                this.log('Start SecClient call from dash.js -> End MDS Request to Network Stack', timestamp, this.marks.START_SEC_CLIENT_ACQUIRE_LICENSE, this.marks.START_SEC_CLIENT_SEND_TO_MDS);
+                this.log('Start MDS Request to Network Stack -> End MDS Response from Network Stack', timestamp, this.marks.START_SEC_CLIENT_SEND_TO_MDS, this.marks.END_SEC_CLIENT_SEND_TO_MDS);
+                this.log('Start MDS Response from Network Stack -> End return to dash.js', timestamp, this.marks.END_SEC_CLIENT_SEND_TO_MDS, this.marks.END_SEC_CLIENT_ACQUIRE_LICENSE);
+                this.log('Start SecClient call from dash.js -> End return to dash.js', timestamp, this.marks.START_SEC_CLIENT_ACQUIRE_LICENSE, this.marks.END_SEC_CLIENT_ACQUIRE_LICENSE);
             }
         }
     }]);
@@ -26338,7 +26343,9 @@ function Stream(config) {
 
         if (!!mediaInfo.contentProtection && !capabilities.supportsEncryptedMedia()) {
             errHandler.capabilityError('encryptedmedia');
-        } else if (!capabilities.supportsCodec((0, _modelsVideoModel2['default'])(context).getInstance().getElement(), codec)) {
+        } else if (codec.includes('ec-3') || !capabilities.supportsCodec((0, _modelsVideoModel2['default'])(context).getInstance().getElement(), codec)) {
+            // NOTE: ec-3 content causes an operation not supported error to be thrown by the call to
+            // createSourceBuffer when using WPE so return false for any codec that includes ec-3.
             msg = type + 'Codec (' + codec + ') is not supported.';
             errHandler.manifestError(msg, 'codec', manifestModel.getValue());
             log(msg);

@@ -252,7 +252,9 @@ function Stream(config) {
 
         if (!!mediaInfo.contentProtection && !capabilities.supportsEncryptedMedia()) {
             errHandler.capabilityError('encryptedmedia');
-        } else if (!capabilities.supportsCodec(VideoModel(context).getInstance().getElement(), codec)) {
+        } else if (codec.includes('ec-3') || !capabilities.supportsCodec(VideoModel(context).getInstance().getElement(), codec)) {
+            // NOTE: ec-3 content causes an operation not supported error to be thrown by the call to
+            // createSourceBuffer when using WPE so return false for any codec that includes ec-3.
             msg = type + 'Codec (' + codec + ') is not supported.';
             errHandler.manifestError(msg, 'codec', manifestModel.getValue());
             log(msg);

@@ -1130,7 +1130,7 @@ function acquireLicense(args) {
                 //console.log(licenseResult);
                 resolve(licenseResult);
             } else {
-                console.log('*** License Result bad status:' + xhr.status + ' ' + xhr.statusText);
+                console.log('*** License Result bad status: ' + xhr.status + ' ' + xhr.statusText);
                 reject(xhr.status + ' ' + xhr.statusText);
             }
             // } else {
@@ -2512,8 +2512,9 @@ function ProtectionController(config) {
 
         // Create args object for call to acquireLicense
         var args = {};
+        args.serviceHostUrl = url;
         args.keySystem = keySystemString;
-        args.licenseRequest = keySystem.getLicenseRequestFromMessage(message);
+        args.licenseRequest = message;
         args.contentMetadata = keySystem.getLicenseServerURLFromInitData(_CommonEncryption2['default'].getPSSHData(sessionToken.initData));
         args.mediaUsage = 'stream';
         args.context = context;
