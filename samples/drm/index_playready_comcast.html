@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Comcast PlayReady DRM Performance Metrics Test</title>
+        <style>
+            video {
+                width: 640px;
+                height: 360px;
+            }
+        </style>
+    </head>
+    <body>
+        <div>
+            <video id="videoPlayer" controls></video>
+        </div>
+        <!-- <script src="dash.all.comcast.debug.js"></script> -->
+        <!-- <script src="dash.all.debug.js"></script> -->
+        <script src="dash.all.min.js"></script>
+        <script>
+            (function(){
+                const LS_URL = 'https://mds-qa.ccp.xcal.tv';
+                const CONTENT_URL = 'http://dev-cog-stack.viperx.org:88/coral_hevc/WarCraft_v13.mpd';
+                var player = dashjs.MediaPlayer().create();
+                var protData = { 'com.microsoft.playready' : { serverURL: LS_URL } };
+                player.setProtectionData(protData);
+                player.initialize(document.querySelector("#videoPlayer"), CONTENT_URL, true);
+            })();
+        </script>
+    </body>
+</html>
